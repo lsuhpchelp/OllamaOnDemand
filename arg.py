@@ -1,6 +1,7 @@
 # Command-line arguments
 
 import argparse
+import getpass
 
 __version__ = "0.1.0"
 
@@ -33,8 +34,8 @@ def get_args():
     )
     
     parser.add_argument(
-        "--model", type=str, default="llama3.2",
-        help="Model to load with Ollama."
+        "--ollama-models", type=str, default="/work/"+getpass.getuser()+"/.ollama",
+        help="Path to Ollama models."
     )
     
     parser.add_argument(

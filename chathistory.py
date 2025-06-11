@@ -18,3 +18,8 @@ chats = [
 # Load chat
 def load_chat(index):
     return chats[index], index
+    
+# New chat
+def new_chat():
+    chats.insert(0, [])
+    return chats[0], 0

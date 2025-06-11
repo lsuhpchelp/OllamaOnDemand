@@ -8,8 +8,14 @@ import gradio as gr
 import requests
 import json
 import subprocess
+import time
+import ollama
 from arg import get_args
 import chathistory as ch
+import threading
+
+# Stop event
+stop_event = threading.Event()
 
 # Read command line options (Global)
 args = get_args()
@@ -21,76 +27,124 @@ if args.debug:
 #                        Functions
 #==============================================================
 
-def get_ollama_models():
-    """Get list of local Ollama models."""
-    try:
-        resp = requests.get(f"{args.ollama_host}/api/tags")
-        resp.raise_for_status()
-        data = resp.json()
-        # tags is a list of {"name": ...}, e.g., "llama3:latest"
-        return [m["name"] for m in data.get("models", [])]
-    except Exception as e:
-        # Fallback to a default if API fails
-        return ["llama3.2"]
-
-
-def stream_chat_with_ollama(user_message, chat_history, selected_model, idx):
-    chat_history = chat_history or []
-    messages = []
+def start_server():
+    """Start Ollama Server"""
     
-    for user, bot in chat_history:
-        messages.append({"role": "user",      "content": user})
-        messages.append({"role": "assistant", "content": bot})
-    messages.append({"role": "user", "content": user_message})
-    chat_history.append((user_message, ""))
+    # Define environment variables
+    env = os.environ.copy()
+    env["OLLAMA_HOST"] = args.ollama_host
+    env["OLLAMA_MODELS"] = args.ollama_models
 
-    response = requests.post(
-        f"{args.ollama_host}/v1/chat/completions",
-        json={
-            "model": selected_model,
-            "messages": messages,
-            "stream": True
-        },
-        stream=True
+    # Start the Ollama server
+    print("Starting Ollama server on " + args.ollama_host)
+    process = subprocess.Popen(
+        ["ollama", "serve"],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
     )
-    response.raise_for_status()
+    
+    # Wait until the server starts
+    for _ in range(60): 
+        try:
+            if requests.get(args.ollama_host).ok:
+                print("Ollama server is running")
+                break
+        except:
+            pass
+        print("Waiting for Ollama server to start...")
+        time.sleep(1)
+    else:
+        raise RuntimeError("Ollama server failed to start in 1 min. Something is wrong.")
+        
+    # Return Ollama client
+    return ollama.Client(host=args.ollama_host)
 
-    for line in response.iter_lines():
-        if not line:
-            continue
-        text = line.decode("utf-8")
-        if text.startswith("data: "):
-            text = text[len("data: "):]
-        if text.strip() == "[DONE]":
-            break
-        chunk = json.loads(text)
-        delta = chunk["choices"][0]["delta"].get("content", "")
-        # Standardize think tag replacement
-        delta = delta.replace("<think>", "(Thinking...)").replace("</think>", "(/Thinking...)")
-        chat_history[-1] = (user_message, chat_history[-1][1] + delta)
-        yield chat_history, "", selected_model  # pass selected_model back to retain state
+def list_models(client):
+    """
+    Get list of models.
+    
+    Input:  client - Client object
+    Output: models - List of all model names
+    """
+    
+    models = client.list().models
+    return [model.model for model in models]
 
-        # ✅ Save updated history to ch.chats
-        ch.chats[idx] = chat_history
+
+def stream_chat(client):
+    """
+    Stream chat.
+    
+    Input:  client          - Client object
+    Output: stream_chat_gr  - Gradio function that yields/streams [chatbot, user_input]
+    """
+    
+    def stream_chat_gr(user_message, chat_history, selected_model, idx, is_streaming):
+
+        # Continue only if it is streaming
+        if is_streaming:
+            
+            # Convert Gradio chat history format to Ollama
+            chat_history = chat_history or []
+            messages = []
+            for user, bot in chat_history:
+                messages.append({"role": "user",      "content": user})
+                messages.append({"role": "assistant", "content": bot})
+            messages.append({"role": "user", "content": user_message})
+            chat_history.append((user_message, ""))
+
+            # Generate next chat results
+            response = client.chat(
+                model=selected_model,
+                messages=messages,
+                stream=True
+            )
+
+            # Stream results in chunks
+            for chunk in response:
+                if stop_event.is_set():
+                    break
+                delta = chunk.get("message", {}).get("content", "")
+                delta = delta.replace("<think>", "(Thinking...)").replace("</think>", "(/Thinking...)")
+                chat_history[-1] = (user_message, chat_history[-1][1] + delta)
+                ch.chats[idx] = chat_history
+                yield chat_history, "", gr.update(value="⏹"), True
+    
+        yield chat_history, "", gr.update(value="➤"), False
+    
+    return stream_chat_gr
 
 #==============================================================
 #                        Create UI
 #==============================================================
     
-def createUI():
+def createUI(client):
     """
     Create UI.
     
-    Input: None
+    Input:  client - Client object
     Output: UI demo
     """
     
     # Fetch models at startup
-    available_models = get_ollama_models()
-    default_model = available_models[0] if available_models else args.model
+    available_models = list_models(client)
+    available_models = available_models if available_models else ["(No model is found. Create a model to continue...)"]
+    selected_model = available_models[0]
 
 
-    with gr.Blocks() as demo:
+    with gr.Blocks(css="""
+        #icon-button {
+            width: 60px;
+            min-width: 60px;
+            max-width: 60px;
+            height: 100%;
+        }
+    """) as demo:
+        
+        # States
+        idx_state = gr.State(0)             # Selected chat session
+        is_streaming = gr.State(False)      # Is streaming (for submit/interrupt button)
         
         #--------------------------------------------------------------
         # Create UI
@@ -102,41 +156,74 @@ def createUI():
             
             # Sidebar (like ChatGPT)
             with gr.Column(scale=1, min_width=220):
-                chats_state = gr.State([[]])
-                idx_state = gr.State(0)
+                
+                # Chat buttons
                 chat_btns = []
                 with gr.Column():
                     for i, chat in enumerate(ch.chats):
                         title = chat[0][0][:30] + "..." if chat else f"Chat {i+1}"
                         btn = gr.Button(value=title, visible=True)
                         chat_btns.append(btn)
+                        
+                # New Chat button
                 new_btn = gr.Button("New Chat")
+                
+                # Delete Chat button
                 del_btn = gr.Button("Delete Chat")
                 
             # Right column: Chat UI
             with gr.Column(scale=3, min_width=400):
+                
+                # Model dropdown
                 model_dropdown = gr.Dropdown(
                     choices=available_models,
-                    value=default_model,
+                    value=selected_model,
                     label="Select Model",
                     interactive=True
                 )
+                
+                # Main chatbox
                 chatbot = gr.Chatbot()
-                user_input = gr.Textbox(placeholder="Type your message here…", show_label=False)
-                clear_btn = gr.Button("Clear")
-
+                
+                # User input textfield and buttons
+                with gr.Row():
+                    user_input = gr.Textbox(placeholder="Type your message here…", show_label=False)
+                    submit_btn = gr.Button(value="➤", elem_id="icon-button", interactive=True)
+                
+                def submit_or_interrupt_event(is_streaming_val):
+                    if is_streaming_val:
+                        stop_event.set()
+                        return gr.update(value="➤"), False
+                    else:
+                        stop_event.clear()
+                        return gr.update(value="⏹"), True
+                    
                 user_input.submit(
-                    fn=stream_chat_with_ollama,
-                    inputs=[user_input, chatbot, model_dropdown, idx_state],
-                    outputs=[chatbot, user_input, model_dropdown]
+                    fn=submit_or_interrupt_event,
+                    inputs=[is_streaming],
+                    outputs=[submit_btn, is_streaming]
+                ).then(
+                    fn=stream_chat(client),
+                    inputs=[user_input, chatbot, model_dropdown, idx_state, is_streaming],
+                    outputs=[chatbot, user_input, submit_btn, is_streaming]
                 )
-                clear_btn.click(lambda: ([], "", default_model), None, [chatbot, user_input, model_dropdown])
+                        
+                submit_btn.click(
+                    fn=submit_or_interrupt_event,
+                    inputs=[is_streaming],
+                    outputs=[submit_btn, is_streaming]
+                ).then(
+                    fn=stream_chat(client),
+                    inputs=[user_input, chatbot, model_dropdown, idx_state, is_streaming],
+                    outputs=[chatbot, user_input, submit_btn, is_streaming]
+                )
+
         
         #--------------------------------------------------------------
         # Update UI
         #--------------------------------------------------------------
             
-        # function to update selected chat button
+        # Function to update selected chat button
         def update_button_styles(selected_idx):
             updates = []
             for i in range(len(chat_btns)):
@@ -144,30 +231,39 @@ def createUI():
                 updates.append(gr.update(variant=style))
             return updates
             
-        # Update chat buttons and chat
+        # Register chat buttons
         for i, btn in enumerate(chat_btns):
             btn.click(
-                fn=lambda _, i=i: ch.load_chat(i),
+                fn=lambda i=i: ch.load_chat(i),
                 inputs=[],
                 outputs=[chatbot, idx_state]
             ).then(
                 fn=update_button_styles,
                 inputs=[idx_state],
                 outputs=chat_btns
-            ).then(
-                lambda: "", None, user_input
             )
+       
+        # Load first chat session
+        demo.load(
+            fn=ch.load_chat,
+            inputs=[idx_state],
+            outputs=[chatbot, idx_state]
+        ).then(
+            fn=update_button_styles,
+            inputs=[idx_state],
+            outputs=chat_btns
+        )
             
-        
-                
-        
     return demo
 
 
 def main():
     
+    # Start Ollama server
+    client = start_server()
+    
     # Create UI
-    demo = createUI()
+    demo = createUI(client)
     
     # Launch
     demo.launch(
