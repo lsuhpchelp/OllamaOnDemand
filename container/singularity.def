@@ -26,5 +26,5 @@ apt update && \
     apt clean
 
 # Install Gradio
-pip install gradio requests
+pip install gradio requests ollama
 
