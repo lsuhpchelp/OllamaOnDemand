@@ -134,12 +134,22 @@ def createUI(client):
 
 
     with gr.Blocks(css="""
+
+        /* Fix icon button size */
         #icon-button {
             width: 60px;
             min-width: 60px;
             max-width: 60px;
             height: 100%;
         }
+        
+        /* Chat selector label 100% wide */
+        #chat-selector label {
+            display: block;
+            width: 100%;
+            margin-bottom: 4px;
+        }
+        
     """) as demo:
         
         # States
@@ -154,22 +164,28 @@ def createUI(client):
         
         with gr.Row():
             
-            # Sidebar (like ChatGPT)
+            # Left column: Chat Selection
             with gr.Column(scale=1, min_width=220):
+
+                # New chat and delete chat
+                with gr.Row():
+                    # New Chat button
+                    new_btn = gr.Button("New Chat")
+                    # Delete Chat button
+                    del_btn = gr.Button("Delete Chat")
                 
                 # Chat buttons
-                chat_btns = []
-                with gr.Column():
-                    for i, chat in enumerate(ch.chats):
-                        title = chat[0][0][:30] + "..." if chat else f"Chat {i+1}"
-                        btn = gr.Button(value=title, visible=True)
-                        chat_btns.append(btn)
-                        
-                # New Chat button
-                new_btn = gr.Button("New Chat")
-                
-                # Delete Chat button
-                del_btn = gr.Button("Delete Chat")
+                def get_chat_titles():
+                    return [ chat[0][0][:30]+"..." if chat else f"Chat {i+1}" for i, chat in enumerate(ch.chats) ]
+                chat_titles = get_chat_titles()
+                chat_selector = gr.Radio(
+                    choices=chat_titles,
+                    show_label=False,
+                    type="index",
+                    value=chat_titles[0], 
+                    interactive=True,
+                    elem_id="chat-selector"
+                )
                 
             # Right column: Chat UI
             with gr.Column(scale=3, min_width=400):
@@ -222,36 +238,33 @@ def createUI(client):
         #--------------------------------------------------------------
         # Update UI
         #--------------------------------------------------------------
-            
-        # Function to update selected chat button
-        def update_button_styles(selected_idx):
-            updates = []
-            for i in range(len(chat_btns)):
-                style = "primary" if i == selected_idx else "secondary"
-                updates.append(gr.update(variant=style))
-            return updates
-            
-        # Register chat buttons
-        for i, btn in enumerate(chat_btns):
-            btn.click(
-                fn=lambda i=i: ch.load_chat(i),
-                inputs=[],
-                outputs=[chatbot, idx_state]
-            ).then(
-                fn=update_button_styles,
-                inputs=[idx_state],
-                outputs=chat_btns
-            )
-       
+        
+        # Register Chat Selector behavior
+        def select_chat(evt: gr.SelectData):
+            return ch.load_chat(evt.index)
+        chat_selector.select(
+            fn=select_chat,
+            inputs=[],
+            outputs=[chatbot, idx_state]
+        )
+        
+        # Register New Chat button
+        def new_chat():
+            ch.new_chat()
+            chat_titles = get_chat_titles()
+            return gr.update(choices=chat_titles, value=chat_titles[0]), *ch.load_chat(0)
+        new_btn.click(
+            fn=new_chat,
+            inputs=[],
+            outputs=[chat_selector, chatbot, idx_state]
+        )
+
+               
         # Load first chat session
         demo.load(
             fn=ch.load_chat,
             inputs=[idx_state],
             outputs=[chatbot, idx_state]
-        ).then(
-            fn=update_button_styles,
-            inputs=[idx_state],
-            outputs=chat_btns
         )
             
     return demo

@@ -22,4 +22,3 @@ def load_chat(index):
 # New chat
 def new_chat():
     chats.insert(0, [])
-    return chats[0], 0
