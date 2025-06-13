@@ -39,9 +39,9 @@ class OllamaOnDemandUI:
         self.is_streaming = False
         
         # Chat session(s)
-        self.chat_titles = cs.get_chat_titles()     # List of chat titles
         self.update_current_chat(0)                 # Load chat at 0 index. Also initialize:
                                                     #   self.chat_index     - Current chat index
+                                                    #   self.chat_title     - Current chat title
                                                     #   self.chat_history   - List of chat (Gradio chatbot compatible)
                                                     #   self.messages       - List of chat (Ollama compatible)
         
@@ -69,7 +69,7 @@ class OllamaOnDemandUI:
         env = os.environ.copy()
         env["OLLAMA_HOST"] = self.args.ollama_host
         env["OLLAMA_MODELS"] = self.args.ollama_models
-        env["OLLAMA_SCHED_SPREAD"] = self.args.ollama_ngpus
+        env["OLLAMA_SCHED_SPREAD"] = self.args.ollama_spread_gpu
 
         # Start the Ollama server
         print("Starting Ollama server on " + self.args.ollama_host)
@@ -142,6 +142,9 @@ class OllamaOnDemandUI:
             # Create a new chat and update chat history
             self.chat_history = cs.new_chat()
             
+            # Get chat title
+            self.chat_title = cs.get_chat_title(0)
+            
         else:
         
             # Update chat index
@@ -149,6 +152,9 @@ class OllamaOnDemandUI:
             
             # Update chat history
             self.chat_history = cs.load_chat(chat_index)
+            
+            # Get chat title
+            self.chat_title = cs.get_chat_title(chat_index)
             
         # Update messages
         self.messages = []
@@ -182,9 +188,9 @@ class OllamaOnDemandUI:
 
                 # Generate next chat results
                 response = self.client.chat(
-                    model=self.model_selected,
-                    messages=self.messages,
-                    stream=True
+                    model = self.model_selected,
+                    messages = self.messages,
+                    stream = True
                 )
 
                 # Stream results in chunks while not interrupted
@@ -204,6 +210,35 @@ class OllamaOnDemandUI:
             yield self.chat_history, "", gr.update(value="➤")
         
         return stream_chat_gr
+        
+    def update_chat_selector(self):
+        """
+        Update chat selector, mainly for auto-generating a new chat title.
+        
+        Input:
+            None
+        Output: 
+            chat_selector:  Chat selector update
+        """
+                
+        # If current chat does not have a title, ask client to summarize and generate one.
+        if self.chat_title == "":
+            
+            # Generate a chat title, but do not alter chat_history and messages
+            response = self.client.chat(
+                model = self.model_selected,
+                messages = self.messages + \
+                    [ { "role": "user", 
+                        "content": "Summarize this entire conversation with less than 6 words. No punctuation."} ],
+                stream = False
+            )
+            
+            # Set new title
+            new_title = response['message']['content']
+            self.chat_title = new_title
+            cs.set_chat_title(self.chat_index, new_title)
+            
+        return gr.update(choices=cs.get_chat_titles(), value=cs.get_chat_titles()[self.chat_index])
     
     def submit_or_interrupt_event(self):
         """
@@ -264,11 +299,8 @@ class OllamaOnDemandUI:
         # Update current chat
         self.update_current_chat(-1)
         
-        # Update chat titles
-        self.chat_titles = cs.get_chat_titles()
-        
         # Return updated chat selector and current chat
-        return gr.update(choices=self.chat_titles, value=self.chat_titles[0]), self.chat_history
+        return gr.update(choices=cs.get_chat_titles(), value=cs.get_chat_titles()[0]), self.chat_history
     
     
     #------------------------------------------------------------------
@@ -309,10 +341,10 @@ class OllamaOnDemandUI:
                     
                     # Chat buttons
                     chat_selector = gr.Radio(
-                        choices=self.chat_titles,
+                        choices=cs.get_chat_titles(),
                         show_label=False,
                         type="index",
-                        value=self.chat_titles[0], 
+                        value=cs.get_chat_titles()[0], 
                         interactive=True,
                         elem_id="chat-selector"
                     )
@@ -343,22 +375,30 @@ class OllamaOnDemandUI:
                         submit_btn = gr.Button(value="➤", elem_id="icon-button", interactive=True)
                         
                         user_input.submit(
-                            fn=self.submit_or_interrupt_event,
+                            fn=self.submit_or_interrupt_event,  # First change submit/interrupt button
                             inputs=[],
                             outputs=[submit_btn]
                         ).then(
-                            fn=self.stream_chat(),
+                            fn=self.stream_chat(),              # Then stream chat
                             inputs=[user_input],
                             outputs=[chatbot, user_input, submit_btn]
+                        ).then(
+                            fn=self.update_chat_selector,       # Then update chat title if needed
+                            inputs=[],
+                            outputs=[chat_selector]
                         )
                         submit_btn.click(
-                            fn=self.submit_or_interrupt_event,
+                            fn=self.submit_or_interrupt_event,  # First change submit/interrupt button
                             inputs=[],
                             outputs=[submit_btn]
                         ).then(
-                            fn=self.stream_chat(),
+                            fn=self.stream_chat(),              # Then stream chat
                             inputs=[user_input],
                             outputs=[chatbot, user_input, submit_btn]
+                        ).then(
+                            fn=self.update_chat_selector,       # Then update chat title if needed
+                            inputs=[],
+                            outputs=[chat_selector]
                         )
             
             #----------------------------------------------------------
