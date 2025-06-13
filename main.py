@@ -11,279 +11,397 @@ import subprocess
 import time
 import ollama
 from arg import get_args
-import chathistory as ch
-import threading
+import chatsessions as cs
 
-# Stop event
-stop_event = threading.Event()
+#======================================================================
+#                           Main UI class
+#======================================================================
 
-# Read command line options (Global)
-args = get_args()
-if args.debug:
-    print(f"Launching with args: {args}")
-
-
-#==============================================================
-#                        Functions
-#==============================================================
-
-def start_server():
-    """Start Ollama Server"""
+class OllamaOnDemandUI:
+    """Ollama OnDemand UI class."""
     
-    # Define environment variables
-    env = os.environ.copy()
-    env["OLLAMA_HOST"] = args.ollama_host
-    env["OLLAMA_MODELS"] = args.ollama_models
-
-    # Start the Ollama server
-    print("Starting Ollama server on " + args.ollama_host)
-    process = subprocess.Popen(
-        ["ollama", "serve"],
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
-    )
+    #------------------------------------------------------------------
+    # Constructor
+    #------------------------------------------------------------------
     
-    # Wait until the server starts
-    for _ in range(60): 
-        try:
-            if requests.get(args.ollama_host).ok:
-                print("Ollama server is running")
-                break
-        except:
-            pass
-        print("Waiting for Ollama server to start...")
-        time.sleep(1)
-    else:
-        raise RuntimeError("Ollama server failed to start in 1 min. Something is wrong.")
+    def __init__(self, args):
+        """
+        Constructor.
         
-    # Return Ollama client
-    return ollama.Client(host=args.ollama_host)
+        Input:
+            args: Command-line arguments.
+        """
+        
+        # Command-line arguments
+        self.args = args
+        
+        # Stop event (for streaming interruption)
+        self.is_streaming = False
+        
+        # Chat session(s)
+        self.chat_titles = cs.get_chat_titles()     # List of chat titles
+        self.update_current_chat(0)                 # Load chat at 0 index. Also initialize:
+                                                    #   self.chat_index     - Current chat index
+                                                    #   self.chat_history   - List of chat (Gradio chatbot compatible)
+                                                    #   self.messages       - List of chat (Ollama compatible)
+        
+        # Start Ollama server and save client(s)
+        self.start_server()
+        self.client = self.get_client()
+        
+        # Get model(s)
+        self.models = self.get_model_list()
+        self.model_selected = self.models[0]
+        
+        # Read css file
+        with open(os.path.dirname(os.path.abspath(__file__))+'/grblocks.css') as f:
+            self.css = f.read()
 
-def list_models(client):
-    """
-    Get list of models.
     
-    Input:  client - Client object
-    Output: models - List of all model names
-    """
-    
-    models = client.list().models
-    return [model.model for model in models]
+    #------------------------------------------------------------------
+    # Server connection
+    #------------------------------------------------------------------
+        
+    def start_server(self):
+        """Start Ollama Server"""
+        
+        # Define environment variables
+        env = os.environ.copy()
+        env["OLLAMA_HOST"] = self.args.ollama_host
+        env["OLLAMA_MODELS"] = self.args.ollama_models
 
-
-def stream_chat(client):
-    """
-    Stream chat.
-    
-    Input:  client          - Client object
-    Output: stream_chat_gr  - Gradio function that yields/streams [chatbot, user_input]
-    """
-    
-    def stream_chat_gr(user_message, chat_history, selected_model, idx, is_streaming):
-
-        # Continue only if it is streaming
-        if is_streaming:
+        # Start the Ollama server
+        print("Starting Ollama server on " + self.args.ollama_host)
+        process = subprocess.Popen(
+            ["ollama", "serve"],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        # Wait until the server starts
+        for _ in range(60): 
+            try:
+                if requests.get(self.args.ollama_host).ok:
+                    print("Ollama server is running")
+                    break
+            except:
+                pass
+            print("Waiting for Ollama server to start...")
+            time.sleep(1)
+        else:
+            raise RuntimeError("Ollama server failed to start in 1 min. Something is wrong.")
             
-            # Convert Gradio chat history format to Ollama
-            chat_history = chat_history or []
-            messages = []
-            for user, bot in chat_history:
-                messages.append({"role": "user",      "content": user})
-                messages.append({"role": "assistant", "content": bot})
-            messages.append({"role": "user", "content": user_message})
-            chat_history.append((user_message, ""))
+    def get_client(self, type="ollama"):
+        """
+        Get client.
+        
+        Input:
+            type: Client type. 
+                - "ollama": Ollama client (Default)
+                - "langchain": LangChain client (To be added)
+        Output:
+            client: Client object
+        """
+        if type=="ollama":
+            return ollama.Client(host=self.args.ollama_host)
+    
+    #------------------------------------------------------------------
+    # Misc utilities
+    #------------------------------------------------------------------
+    
+    def get_model_list(self):
+        """
+        Get list of models.
+        
+        Input:
+            None
+        Output: 
+            models: List of all model names
+        """
+        
+        models = [model.model for model in self.client.list().models]
+        return models if models else ["(No model is found. Create a model to continue...)"]
+                    
+    def update_current_chat(self, chat_index):
+        """
+        Update current chat index, history (Gradio), and messages (Ollama) to given index.
+        
+        Input:
+            chat_index:     Chat index (-1 to start a new chat, others to select existings).
+        Output: 
+            None
+        """
+        
+        if chat_index == -1:
+        
+            # Update chat index
+            self.chat_index = 0
+            
+            # Create a new chat and update chat history
+            self.chat_history = cs.new_chat()
+            
+        else:
+        
+            # Update chat index
+            self.chat_index = chat_index
+            
+            # Update chat history
+            self.chat_history = cs.load_chat(chat_index)
+            
+        # Update messages
+        self.messages = []
+        for user, bot in self.chat_history:
+            self.messages.append({"role": "user",      "content": user})
+            self.messages.append({"role": "assistant", "content": bot})
 
-            # Generate next chat results
-            response = client.chat(
-                model=selected_model,
-                messages=messages,
-                stream=True
+        
+    #------------------------------------------------------------------
+    # Event handler
+    #------------------------------------------------------------------
+    
+    def stream_chat(self):
+        """
+        Stream chat.
+        
+        Input:
+            None
+        Output: 
+            stream_chat_gr: Gradio function that yields/streams [chatbot, user_input, submit_button_face]
+        """
+        
+        def stream_chat_gr(user_message):
+
+            # Continue only if it is streaming (not interrupted)
+            if self.is_streaming:
+                
+                # Append user message to chat history and messages
+                self.chat_history.append((user_message, ""))
+                self.messages.append({"role": "user", "content": user_message})
+
+                # Generate next chat results
+                response = self.client.chat(
+                    model=self.model_selected,
+                    messages=self.messages,
+                    stream=True
+                )
+
+                # Stream results in chunks while not interrupted
+                for chunk in response:
+                    if not self.is_streaming:
+                        break
+                    delta = chunk.get("message", {}).get("content", "")
+                    delta = delta.replace("<think>", "(Thinking...)").replace("</think>", "(/Thinking...)")
+                    self.chat_history[-1] = (user_message, self.chat_history[-1][1] + delta)
+                    cs.chats[self.chat_index] = self.chat_history
+                    yield self.chat_history, "", gr.update(value="⏹")
+            
+            self.is_streaming = False
+            yield self.chat_history, "", gr.update(value="➤")
+        
+        return stream_chat_gr
+    
+    def submit_or_interrupt_event(self):
+        """
+        Handles the button face of submit / interrupt button.
+        
+        Input:
+            None
+        Output: 
+            submit_button_face: Gradio update method to update button face ("value" property)
+        """
+        
+        if self.is_streaming:
+            self.is_streaming = False
+            return gr.update(value="➤")
+        else:
+            self.is_streaming = True
+            return gr.update(value="⏹")
+    
+    def select_model(self, evt: gr.SelectData):
+        """
+        Change selected model.
+        
+        Input:
+            evt:            Event instance (as gr.SelectData) 
+        Output: 
+            None
+        """
+        self.model_selected = evt.value
+            
+    def select_chat(self, evt: gr.SelectData):
+        """
+        Change selected chat.
+        
+        Input:
+            evt:            Event instance (as gr.SelectData) 
+        Output: 
+            chat_history:   List of chat (Gradio chatbot compatible)
+        """
+        
+        # Update current chat
+        self.update_current_chat(evt.index)
+        
+        # Return chat history to chatbot
+        return self.chat_history
+        
+    # Register New Chat button
+    def new_chat(self):
+        """
+        Change selected chat.
+        
+        Input:
+            None
+        Output: 
+            chat_selector:  Chat selector update
+            chat_history:   List of chat (Gradio chatbot compatible)
+        """
+        
+        # Update current chat
+        self.update_current_chat(-1)
+        
+        # Update chat titles
+        self.chat_titles = cs.get_chat_titles()
+        
+        # Return updated chat selector and current chat
+        return gr.update(choices=self.chat_titles, value=self.chat_titles[0]), self.chat_history
+    
+    
+    #------------------------------------------------------------------
+    # Build UI
+    #------------------------------------------------------------------
+    
+    def build_ui(self):
+        """
+        Build UI
+        
+        Input:
+            None.
+        Output: 
+            demo:   Gradio UI demo
+        """
+
+        with gr.Blocks(css=self.css) as self.demo:
+            
+            #----------------------------------------------------------
+            # Create UI
+            #----------------------------------------------------------
+
+            gr.Markdown("# Ollama OnDemand")
+            
+            with gr.Row():
+                
+                # Left column: Chat Selection
+                with gr.Column(scale=1, min_width=220):
+
+                    # New chat and delete chat
+                    with gr.Row():
+                        
+                        # New Chat button
+                        new_btn = gr.Button("New Chat")
+                        
+                        # Delete Chat button
+                        del_btn = gr.Button("Delete Chat")
+                    
+                    # Chat buttons
+                    chat_selector = gr.Radio(
+                        choices=self.chat_titles,
+                        show_label=False,
+                        type="index",
+                        value=self.chat_titles[0], 
+                        interactive=True,
+                        elem_id="chat-selector"
+                    )
+                    
+                # Right column: Chat UI
+                with gr.Column(scale=3, min_width=400):
+                    
+                    # Model dropdown
+                    model_dropdown = gr.Dropdown(
+                        choices=self.models,
+                        value=self.model_selected,
+                        label="Select Model",
+                        interactive=True
+                    )
+                    model_dropdown.select(
+                        fn=self.select_model,
+                        inputs=[],
+                        outputs=[],
+                    )
+                    
+                    # Main chatbot
+                    chatbot = gr.Chatbot()
+                    
+                    # User input textfield and buttons
+                    with gr.Row():
+                        
+                        user_input = gr.Textbox(placeholder="Type your message here…", show_label=False)
+                        submit_btn = gr.Button(value="➤", elem_id="icon-button", interactive=True)
+                        
+                        user_input.submit(
+                            fn=self.submit_or_interrupt_event,
+                            inputs=[],
+                            outputs=[submit_btn]
+                        ).then(
+                            fn=self.stream_chat(),
+                            inputs=[user_input],
+                            outputs=[chatbot, user_input, submit_btn]
+                        )
+                        submit_btn.click(
+                            fn=self.submit_or_interrupt_event,
+                            inputs=[],
+                            outputs=[submit_btn]
+                        ).then(
+                            fn=self.stream_chat(),
+                            inputs=[user_input],
+                            outputs=[chatbot, user_input, submit_btn]
+                        )
+            
+            #----------------------------------------------------------
+            # Update UI (for some widgets created in sequence)
+            #----------------------------------------------------------
+            
+            # New chat button
+            new_btn.click(
+                fn=self.new_chat,
+                inputs=[],
+                outputs=[chat_selector, chatbot]
+            )
+            
+            # Chat selector
+            chat_selector.select(
+                fn=self.select_chat,
+                inputs=[],
+                outputs=[chatbot]
             )
 
-            # Stream results in chunks
-            for chunk in response:
-                if stop_event.is_set():
-                    break
-                delta = chunk.get("message", {}).get("content", "")
-                delta = delta.replace("<think>", "(Thinking...)").replace("</think>", "(/Thinking...)")
-                chat_history[-1] = (user_message, chat_history[-1][1] + delta)
-                ch.chats[idx] = chat_history
-                yield chat_history, "", gr.update(value="⏹"), True
-    
-        yield chat_history, "", gr.update(value="➤"), False
-    
-    return stream_chat_gr
-
-#==============================================================
-#                        Create UI
-#==============================================================
-    
-def createUI(client):
-    """
-    Create UI.
-    
-    Input:  client - Client object
-    Output: UI demo
-    """
-    
-    # Fetch models at startup
-    available_models = list_models(client)
-    available_models = available_models if available_models else ["(No model is found. Create a model to continue...)"]
-    selected_model = available_models[0]
-
-
-    with gr.Blocks(css="""
-
-        /* Fix icon button size */
-        #icon-button {
-            width: 60px;
-            min-width: 60px;
-            max-width: 60px;
-            height: 100%;
-        }
-        
-        /* Chat selector label 100% wide */
-        #chat-selector label {
-            display: block;
-            width: 100%;
-            margin-bottom: 4px;
-        }
-        
-    """) as demo:
-        
-        # States
-        idx_state = gr.State(0)             # Selected chat session
-        is_streaming = gr.State(False)      # Is streaming (for submit/interrupt button)
-        
-        #--------------------------------------------------------------
-        # Create UI
-        #--------------------------------------------------------------
-
-        gr.Markdown("# Ollama OnDemand")
-        
-        with gr.Row():
+            #----------------------------------------------------------
+            # Load UI
+            #----------------------------------------------------------
             
-            # Left column: Chat Selection
-            with gr.Column(scale=1, min_width=220):
-
-                # New chat and delete chat
-                with gr.Row():
-                    # New Chat button
-                    new_btn = gr.Button("New Chat")
-                    # Delete Chat button
-                    del_btn = gr.Button("Delete Chat")
+            self.demo.load(
+                fn=lambda : cs.load_chat(0),
+                inputs=[],
+                outputs=[chatbot]
+            )
                 
-                # Chat buttons
-                def get_chat_titles():
-                    return [ chat[0][0][:30]+"..." if chat else f"Chat {i+1}" for i, chat in enumerate(ch.chats) ]
-                chat_titles = get_chat_titles()
-                chat_selector = gr.Radio(
-                    choices=chat_titles,
-                    show_label=False,
-                    type="index",
-                    value=chat_titles[0], 
-                    interactive=True,
-                    elem_id="chat-selector"
-                )
-                
-            # Right column: Chat UI
-            with gr.Column(scale=3, min_width=400):
-                
-                # Model dropdown
-                model_dropdown = gr.Dropdown(
-                    choices=available_models,
-                    value=selected_model,
-                    label="Select Model",
-                    interactive=True
-                )
-                
-                # Main chatbox
-                chatbot = gr.Chatbot()
-                
-                # User input textfield and buttons
-                with gr.Row():
-                    user_input = gr.Textbox(placeholder="Type your message here…", show_label=False)
-                    submit_btn = gr.Button(value="➤", elem_id="icon-button", interactive=True)
-                
-                def submit_or_interrupt_event(is_streaming_val):
-                    if is_streaming_val:
-                        stop_event.set()
-                        return gr.update(value="➤"), False
-                    else:
-                        stop_event.clear()
-                        return gr.update(value="⏹"), True
-                    
-                user_input.submit(
-                    fn=submit_or_interrupt_event,
-                    inputs=[is_streaming],
-                    outputs=[submit_btn, is_streaming]
-                ).then(
-                    fn=stream_chat(client),
-                    inputs=[user_input, chatbot, model_dropdown, idx_state, is_streaming],
-                    outputs=[chatbot, user_input, submit_btn, is_streaming]
-                )
-                        
-                submit_btn.click(
-                    fn=submit_or_interrupt_event,
-                    inputs=[is_streaming],
-                    outputs=[submit_btn, is_streaming]
-                ).then(
-                    fn=stream_chat(client),
-                    inputs=[user_input, chatbot, model_dropdown, idx_state, is_streaming],
-                    outputs=[chatbot, user_input, submit_btn, is_streaming]
-                )
-
+        return self.demo
+    
+    def launch(self):
+        #Launch
         
-        #--------------------------------------------------------------
-        # Update UI
-        #--------------------------------------------------------------
-        
-        # Register Chat Selector behavior
-        def select_chat(evt: gr.SelectData):
-            return ch.load_chat(evt.index)
-        chat_selector.select(
-            fn=select_chat,
-            inputs=[],
-            outputs=[chatbot, idx_state]
+        self.demo.launch(
+            server_name=self.args.host,
+            server_port=self.args.port,
+            root_path=self.args.root_path
         )
-        
-        # Register New Chat button
-        def new_chat():
-            ch.new_chat()
-            chat_titles = get_chat_titles()
-            return gr.update(choices=chat_titles, value=chat_titles[0]), *ch.load_chat(0)
-        new_btn.click(
-            fn=new_chat,
-            inputs=[],
-            outputs=[chat_selector, chatbot, idx_state]
-        )
-
-               
-        # Load first chat session
-        demo.load(
-            fn=ch.load_chat,
-            inputs=[idx_state],
-            outputs=[chatbot, idx_state]
-        )
-            
-    return demo
 
 
 def main():
     
-    # Start Ollama server
-    client = start_server()
-    
-    # Create UI
-    demo = createUI(client)
-    
-    # Launch
-    demo.launch(
-        server_name=args.host,
-        server_port=args.port,
-        root_path=args.root_path
-    )
+    app = OllamaOnDemandUI(get_args())
+    app.build_ui()
+    app.launch()
 
 if __name__ == "__main__":
     main()

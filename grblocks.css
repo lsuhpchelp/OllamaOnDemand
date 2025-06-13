@@ -1,0 +1,14 @@
+/* Fix icon button size */
+#icon-button {
+    width: 60px;
+    min-width: 60px;
+    max-width: 60px;
+    height: 100%;
+}
+
+/* Chat selector label 100% wide */
+#chat-selector label {
+    display: block;
+    width: 100%;
+    margin-bottom: 4px;
+}
