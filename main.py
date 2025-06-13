@@ -69,6 +69,7 @@ class OllamaOnDemandUI:
         env = os.environ.copy()
         env["OLLAMA_HOST"] = self.args.ollama_host
         env["OLLAMA_MODELS"] = self.args.ollama_models
+        env["OLLAMA_SCHED_SPREAD"] = self.args.ollama_ngpus
 
         # Start the Ollama server
         print("Starting Ollama server on " + self.args.ollama_host)
@@ -193,8 +194,11 @@ class OllamaOnDemandUI:
                     delta = chunk.get("message", {}).get("content", "")
                     delta = delta.replace("<think>", "(Thinking...)").replace("</think>", "(/Thinking...)")
                     self.chat_history[-1] = (user_message, self.chat_history[-1][1] + delta)
-                    cs.chats[self.chat_index] = self.chat_history
+                    #cs.chats[self.chat_index] = self.chat_history
                     yield self.chat_history, "", gr.update(value="⏹")
+                
+                # Add complete AI response to self.messages
+                self.messages.append({"role": "assistant", "content": self.chat_history[-1][1]})
             
             self.is_streaming = False
             yield self.chat_history, "", gr.update(value="➤")
@@ -276,9 +280,9 @@ class OllamaOnDemandUI:
         Build UI
         
         Input:
-            None.
+            None
         Output: 
-            demo:   Gradio UI demo
+            None
         """
 
         with gr.Blocks(css=self.css) as self.demo:
@@ -384,11 +388,16 @@ class OllamaOnDemandUI:
                 inputs=[],
                 outputs=[chatbot]
             )
-                
-        return self.demo
     
     def launch(self):
-        #Launch
+        """
+        Launch UI after it is built.
+        
+        Input:
+            None
+        Output: 
+            None
+        """
         
         self.demo.launch(
             server_name=self.args.host,
