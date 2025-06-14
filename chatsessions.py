@@ -50,6 +50,19 @@ def new_chat():
     chats.insert(0, { "title": "", "history": [] })
     return chats[0]["history"]
 
+def delete_chat(index):
+    """
+    Delete chat session at the specified index.
+    
+    Input:
+        index: Index of chat session to delete
+    Output:
+        None
+    """
+    if 0 <= index < len(chats):
+        del chats[index]
+
+
 def set_chat_title(index, title):
     """
     Set chat session title at index.

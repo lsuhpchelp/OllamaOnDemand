@@ -4,12 +4,13 @@
 # =============================
 
 import os
-import gradio as gr
 import requests
 import json
 import subprocess
 import time
+import re
 import ollama
+import gradio as gr
 from arg import get_args
 import chatsessions as cs
 
@@ -229,12 +230,13 @@ class OllamaOnDemandUI:
                 model = self.model_selected,
                 messages = self.messages + \
                     [ { "role": "user", 
-                        "content": "Summarize this entire conversation with less than 6 words. No punctuation."} ],
+                        "content": "Summarize this entire conversation with less than six words. Be objective and formal (Don't use first person expression). No punctuation."} ],
                 stream = False
             )
             
             # Set new title
             new_title = response['message']['content']
+            new_title = re.sub(r"<think>.*?</think>", "", new_title, flags=re.DOTALL).strip()
             self.chat_title = new_title
             cs.set_chat_title(self.chat_index, new_title)
             
@@ -301,6 +303,37 @@ class OllamaOnDemandUI:
         
         # Return updated chat selector and current chat
         return gr.update(choices=cs.get_chat_titles(), value=cs.get_chat_titles()[0]), self.chat_history
+
+    def delete_chat(self):
+        """
+        Delete the current chat and update UI.
+        
+        Input:
+            None
+        Output:
+            chat_selector:  Chat selector update
+            chat_history:   List of chat (Gradio chatbot compatible)
+        """
+        
+        # Delegate deletion to chatsessions
+        cs.delete_chat(self.chat_index)
+        
+        # Adjust selection: try to select next, else previous, else show blank
+        num_chats = len(cs.get_chat_titles())
+        if num_chats == 0:
+            self.chat_index = 0
+            self.chat_history = []
+            selector_choices = []
+            selector_value = None
+        else:
+            if self.chat_index >= num_chats:
+                self.chat_index = num_chats - 1  # Move to previous if at end
+            self.update_current_chat(self.chat_index)
+            selector_choices = cs.get_chat_titles()
+            selector_value = selector_choices[self.chat_index]
+        
+        return gr.update(choices=selector_choices, value=selector_value), self.chat_history
+
     
     
     #------------------------------------------------------------------
@@ -338,8 +371,18 @@ class OllamaOnDemandUI:
                         
                         # Delete Chat button
                         del_btn = gr.Button("Delete Chat")
+                        
+                    # Confirmation "dialog"
+                    with gr.Group(visible=False) as del_btn_dialog:
+                        gr.Markdown(
+                            '<b>Are you sure you want to delete selected chat?</b>', \
+                            elem_id="del-button-dialog"
+                        )
+                        with gr.Row():
+                            del_btn_confirm = gr.Button("Yes", variant="stop")
+                            del_btn_cancle = gr.Button("Cancel")
                     
-                    # Chat buttons
+                    # Chat selector
                     chat_selector = gr.Radio(
                         choices=cs.get_chat_titles(),
                         show_label=False,
@@ -352,17 +395,12 @@ class OllamaOnDemandUI:
                 # Right column: Chat UI
                 with gr.Column(scale=3, min_width=400):
                     
-                    # Model dropdown
+                    # Model selector
                     model_dropdown = gr.Dropdown(
                         choices=self.models,
                         value=self.model_selected,
                         label="Select Model",
                         interactive=True
-                    )
-                    model_dropdown.select(
-                        fn=self.select_model,
-                        inputs=[],
-                        outputs=[],
                     )
                     
                     # Main chatbot
@@ -373,36 +411,9 @@ class OllamaOnDemandUI:
                         
                         user_input = gr.Textbox(placeholder="Type your message here…", show_label=False)
                         submit_btn = gr.Button(value="➤", elem_id="icon-button", interactive=True)
-                        
-                        user_input.submit(
-                            fn=self.submit_or_interrupt_event,  # First change submit/interrupt button
-                            inputs=[],
-                            outputs=[submit_btn]
-                        ).then(
-                            fn=self.stream_chat(),              # Then stream chat
-                            inputs=[user_input],
-                            outputs=[chatbot, user_input, submit_btn]
-                        ).then(
-                            fn=self.update_chat_selector,       # Then update chat title if needed
-                            inputs=[],
-                            outputs=[chat_selector]
-                        )
-                        submit_btn.click(
-                            fn=self.submit_or_interrupt_event,  # First change submit/interrupt button
-                            inputs=[],
-                            outputs=[submit_btn]
-                        ).then(
-                            fn=self.stream_chat(),              # Then stream chat
-                            inputs=[user_input],
-                            outputs=[chatbot, user_input, submit_btn]
-                        ).then(
-                            fn=self.update_chat_selector,       # Then update chat title if needed
-                            inputs=[],
-                            outputs=[chat_selector]
-                        )
             
             #----------------------------------------------------------
-            # Update UI (for some widgets created in sequence)
+            # Register listeners
             #----------------------------------------------------------
             
             # New chat button
@@ -411,12 +422,68 @@ class OllamaOnDemandUI:
                 inputs=[],
                 outputs=[chat_selector, chatbot]
             )
+
+            # Delete chat button (along with confirmation dialog)
+            del_btn.click(                          # Delete button: Toggle Confirmation dialog
+                lambda: gr.update(visible=True),
+                inputs=[],
+                outputs=[del_btn_dialog]
+            )
+            del_btn_confirm.click(                  # Confirm delete: Do it and hide dialog
+                fn=self.delete_chat,
+                inputs=[],
+                outputs=[chat_selector, chatbot]
+            ).then(
+                lambda: gr.update(visible=False),
+                inputs=[],
+                outputs=[del_btn_dialog]
+            )                                       # Cancel delete: Hide dialog
+            del_btn_cancle.click(
+                lambda: gr.update(visible=False),
+                inputs=[],
+                outputs=[del_btn_dialog]
+            )
             
             # Chat selector
             chat_selector.select(
                 fn=self.select_chat,
                 inputs=[],
                 outputs=[chatbot]
+            )
+            
+            # Model selector
+            model_dropdown.select(
+                fn=self.select_model,
+                inputs=[],
+                outputs=[],
+            )
+            
+            # User input textfield and buttons
+            user_input.submit(
+                fn=self.submit_or_interrupt_event,  # First change submit/interrupt button
+                inputs=[],
+                outputs=[submit_btn]
+            ).then(
+                fn=self.stream_chat(),              # Then stream chat
+                inputs=[user_input],
+                outputs=[chatbot, user_input, submit_btn]
+            ).then(
+                fn=self.update_chat_selector,       # Then update chat title if needed
+                inputs=[],
+                outputs=[chat_selector]
+            )
+            submit_btn.click(
+                fn=self.submit_or_interrupt_event,  # First change submit/interrupt button
+                inputs=[],
+                outputs=[submit_btn]
+            ).then(
+                fn=self.stream_chat(),              # Then stream chat
+                inputs=[user_input],
+                outputs=[chatbot, user_input, submit_btn]
+            ).then(
+                fn=self.update_chat_selector,       # Then update chat title if needed
+                inputs=[],
+                outputs=[chat_selector]
             )
 
             #----------------------------------------------------------
