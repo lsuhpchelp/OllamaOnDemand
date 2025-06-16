@@ -15,6 +15,7 @@ Description     Ollama OnDemand official Singularity recipe
 %environment
 ################################################################################
 
+export PATH=/opt/miniforge3/bin:$PATH
 
 ################################################################################
 %post
@@ -22,9 +23,17 @@ Description     Ollama OnDemand official Singularity recipe
 
 # Install packages
 apt update && \
-    apt install -y wget git python3-dev pip && \
+    apt install -y wget git && \
     apt clean
 
+# Install Miniforge (latest Python for latest Gradio version)
+cd /opt
+wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh && \
+    bash Miniforge3-Linux-x86_64.sh -b -p /opt/miniforge3/ && \
+    rm Miniforge3-Linux-x86_64.sh && \
+    /opt/miniforge3/bin/conda init bash && \
+    . /opt/miniforge3/bin/activate
+
 # Install Gradio
-pip install gradio requests ollama
+pip install gradio requests ollama langchain-ollama
 
