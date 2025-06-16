@@ -1,28 +1,29 @@
 # Chat sessions management
 
 chats = [
-    { 
+    {
         "title": "News summary",
-        "history": 
-            [
-                ("Hi there!", "Hello! How can I help you today?"),
-                ("Can you summarize the news?", "Sure! Here's a brief summary of today's top news...")
-            ]
+        "history": [
+            {'role': 'user', 'content': "Hi there!"},
+            {'role': 'assistant', 'content': "Hello! How can I help you today?"},
+            {'role': 'user', 'content': "Can you summarize the news?"},
+            {'role': 'assistant', 'content': "Sure! Here's a brief summary of today's top news..."}
+        ]
     },
     { 
         "title": "Capital of France",
         "history": 
         [
-            ("What is the capital of France?", "The capital of France is Paris."),
-            ("Thanks!", "You're welcome!")
+            {'role': 'user', 'content': "What is the capital of France?"},
+            {'role': 'assistant', 'content': "The capital of France is Paris."}
         ]
     },
     { 
         "title": "Quantum entanglement",
         "history": 
         [
-            ("Explain quantum entanglement", 
-             "Quantum entanglement is a physical phenomenon where particles remain connected such that the state of one affects the other, no matter the distance.")
+            {'role': 'user', 'content': "Explain quantum entanglement"},
+            {'role': 'assistant', 'content': "Quantum entanglement is a physical phenomenon where particles remain connected such that the state of one affects the other, no matter the distance."}
         ]
     }
 ]

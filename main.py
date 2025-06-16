@@ -43,8 +43,7 @@ class OllamaOnDemandUI:
         self.update_current_chat(0)                 # Load chat at 0 index. Also initialize:
                                                     #   self.chat_index     - Current chat index
                                                     #   self.chat_title     - Current chat title
-                                                    #   self.chat_history   - List of chat (Gradio chatbot compatible)
-                                                    #   self.messages       - List of chat (Ollama compatible)
+                                                    #   self.chat_history   - Current chat history
         
         # Start Ollama server and save client(s)
         self.start_server()
@@ -53,10 +52,6 @@ class OllamaOnDemandUI:
         # Get model(s)
         self.models = self.get_model_list()
         self.model_selected = self.models[0]
-        
-        # Read css file
-        with open(os.path.dirname(os.path.abspath(__file__))+'/grblocks.css') as f:
-            self.css = f.read()
 
     
     #------------------------------------------------------------------
@@ -127,7 +122,7 @@ class OllamaOnDemandUI:
                     
     def update_current_chat(self, chat_index):
         """
-        Update current chat index, history (Gradio), and messages (Ollama) to given index.
+        Update current chat index, history to given index.
         
         Input:
             chat_index:     Chat index (-1 to start a new chat, others to select existings).
@@ -156,12 +151,6 @@ class OllamaOnDemandUI:
             
             # Get chat title
             self.chat_title = cs.get_chat_title(chat_index)
-            
-        # Update messages
-        self.messages = []
-        for user, bot in self.chat_history:
-            self.messages.append({"role": "user",      "content": user})
-            self.messages.append({"role": "assistant", "content": bot})
 
         
     #------------------------------------------------------------------
@@ -170,47 +159,83 @@ class OllamaOnDemandUI:
     
     def stream_chat(self):
         """
-        Stream chat.
+        Stream chat (invoked by new/edit/retry).
         
         Input:
             None
         Output: 
-            stream_chat_gr: Gradio function that yields/streams [chatbot, user_input, submit_button_face]
+            chat_history:       Current chat history
+            user_input:         Update user input field to ""
+            submit_button_face: Update submit button face
         """
+
+        # Generate next chat results
+        response = self.client.chat(
+            model = self.model_selected,
+            messages = self.chat_history,
+            stream = True
+        )
+
+        # Stream results in chunks while not interrupted
+        for chunk in response:
+            if not self.is_streaming:
+                break
+            delta = chunk.get("message", {}).get("content", "")
+            delta = delta.replace("<think>", "(Thinking...)").replace("</think>", "(/Thinking...)")
+            self.chat_history[-1]["content"] += delta
+            yield self.chat_history, "", gr.update(value="⏹")
+    
+    def new_message(self, user_message):
+        """
+        New user message
         
-        def stream_chat_gr(user_message):
+        Input:
+            user_message:       User's input
+        Output: 
+            chat_history:       Current chat history
+            user_input:         Update user input field to ""
+            submit_button_face: Update submit button face
+        """
 
-            # Continue only if it is streaming (not interrupted)
-            if self.is_streaming:
-                
-                # Append user message to chat history and messages
-                self.chat_history.append((user_message, ""))
-                self.messages.append({"role": "user", "content": user_message})
-
-                # Generate next chat results
-                response = self.client.chat(
-                    model = self.model_selected,
-                    messages = self.messages,
-                    stream = True
-                )
-
-                # Stream results in chunks while not interrupted
-                for chunk in response:
-                    if not self.is_streaming:
-                        break
-                    delta = chunk.get("message", {}).get("content", "")
-                    delta = delta.replace("<think>", "(Thinking...)").replace("</think>", "(/Thinking...)")
-                    self.chat_history[-1] = (user_message, self.chat_history[-1][1] + delta)
-                    #cs.chats[self.chat_index] = self.chat_history
-                    yield self.chat_history, "", gr.update(value="⏹")
-                
-                # Add complete AI response to self.messages
-                self.messages.append({"role": "assistant", "content": self.chat_history[-1][1]})
+        # Continue only if it is streaming (not interrupted)
+        if self.is_streaming:
             
-            self.is_streaming = False
-            yield self.chat_history, "", gr.update(value="➤")
+            # Append user message to chat history
+            self.chat_history.append({"role": "user", "content": user_message})
+            self.chat_history.append({"role": "assistant", "content": ""})
+
+            # Generate next chat results
+            yield from self.stream_chat()
         
-        return stream_chat_gr
+        self.is_streaming = False
+        yield self.chat_history, "", gr.update(value="➤")
+    
+    def retry(self, retry_data: gr.RetryData):
+        """
+        New user message
+        
+        Input:
+            retry_data:         Event instance (as gr.RetryData)
+        Output: 
+            chat_history:       Current chat history
+            user_input:         Update user input field to ""
+            submit_button_face: Update submit button face
+        """
+
+        # Gradio will automatically block retry if it is currently streaming. Here it is always not streaming.
+        # Set to streaming and continue
+        self.is_streaming = True
+        #yield self.chat_history, "", gr.update(value="⏹")
+        
+        # Append user message to chat history
+        self.chat_history = self.chat_history[:retry_data.index+1]
+        self.chat_history.append({"role": "assistant", "content": ""})
+
+        # Generate next chat results
+        yield from self.stream_chat()
+        
+        self.is_streaming = False
+        yield self.chat_history, "", gr.update(value="➤")
         
     def update_chat_selector(self):
         """
@@ -225,10 +250,10 @@ class OllamaOnDemandUI:
         # If current chat does not have a title, ask client to summarize and generate one.
         if self.chat_title == "":
             
-            # Generate a chat title, but do not alter chat_history and messages
+            # Generate a chat title, but do not alter chat_history
             response = self.client.chat(
                 model = self.model_selected,
-                messages = self.messages + \
+                messages = self.chat_history + \
                     [ { "role": "user", 
                         "content": "Summarize this entire conversation with less than six words. Be objective and formal (Don't use first person expression). No punctuation."} ],
                 stream = False
@@ -277,7 +302,7 @@ class OllamaOnDemandUI:
         Input:
             evt:            Event instance (as gr.SelectData) 
         Output: 
-            chat_history:   List of chat (Gradio chatbot compatible)
+            chat_history:   Chat history
         """
         
         # Update current chat
@@ -295,7 +320,7 @@ class OllamaOnDemandUI:
             None
         Output: 
             chat_selector:  Chat selector update
-            chat_history:   List of chat (Gradio chatbot compatible)
+            chat_history:   Chat history
         """
         
         # Update current chat
@@ -312,7 +337,7 @@ class OllamaOnDemandUI:
             None
         Output:
             chat_selector:  Chat selector update
-            chat_history:   List of chat (Gradio chatbot compatible)
+            chat_history:   Chat history
         """
         
         # Delegate deletion to chatsessions
@@ -321,18 +346,13 @@ class OllamaOnDemandUI:
         # Adjust selection: try to select next, else previous, else show blank
         num_chats = len(cs.get_chat_titles())
         if num_chats == 0:
-            self.chat_index = 0
-            self.chat_history = []
-            selector_choices = []
-            selector_value = None
+            return self.new_chat()
         else:
             if self.chat_index >= num_chats:
                 self.chat_index = num_chats - 1  # Move to previous if at end
             self.update_current_chat(self.chat_index)
-            selector_choices = cs.get_chat_titles()
-            selector_value = selector_choices[self.chat_index]
         
-        return gr.update(choices=selector_choices, value=selector_value), self.chat_history
+        return gr.update(choices=cs.get_chat_titles(), value=cs.get_chat_titles()[self.chat_index]), self.chat_history
 
     
     
@@ -350,67 +370,85 @@ class OllamaOnDemandUI:
             None
         """
 
-        with gr.Blocks(css=self.css) as self.demo:
+        with gr.Blocks(
+            css_paths=os.path.dirname(os.path.abspath(__file__))+'/grblocks.css',
+            title="Ollama OnDemand"
+        ) as self.demo:
             
             #----------------------------------------------------------
             # Create UI
             #----------------------------------------------------------
-
-            gr.Markdown("# Ollama OnDemand")
             
-            with gr.Row():
-                
-                # Left column: Chat Selection
-                with gr.Column(scale=1, min_width=220):
-
-                    # New chat and delete chat
-                    with gr.Row():
-                        
-                        # New Chat button
-                        new_btn = gr.Button("New Chat")
-                        
-                        # Delete Chat button
-                        del_btn = gr.Button("Delete Chat")
-                        
-                    # Confirmation "dialog"
-                    with gr.Group(visible=False) as del_btn_dialog:
-                        gr.Markdown(
-                            '<b>Are you sure you want to delete selected chat?</b>', \
-                            elem_id="del-button-dialog"
-                        )
-                        with gr.Row():
-                            del_btn_confirm = gr.Button("Yes", variant="stop")
-                            del_btn_cancle = gr.Button("Cancel")
+            gr.Markdown(
+                "# Ollama OnDemand",
+                elem_id="no-shrink"
+            )
+            
+            # Main
+            with gr.Column(elem_id="main-column"):
                     
-                    # Chat selector
-                    chat_selector = gr.Radio(
-                        choices=cs.get_chat_titles(),
-                        show_label=False,
-                        type="index",
-                        value=cs.get_chat_titles()[0], 
-                        interactive=True,
-                        elem_id="chat-selector"
-                    )
-                    
-                # Right column: Chat UI
-                with gr.Column(scale=3, min_width=400):
-                    
-                    # Model selector
+                # Model selector
+                with gr.Row(elem_id="no-shrink"):
                     model_dropdown = gr.Dropdown(
                         choices=self.models,
                         value=self.model_selected,
                         label="Select Model",
                         interactive=True
                     )
+                
+                # Main chatbot
+                chatbot = gr.Chatbot(
+                    show_label=False,
+                    type="messages",
+                    show_copy_button=True,
+                    editable="user",
+                    elem_id="gr-chatbot"
+                )
+                #chatbot_interface = gr.ChatInterface(
+                #    fn=self.new_message,              # Then stream chat
+                #    inputs=[user_input],
+                #    outputs=[chatbot, user_input, submit_btn],
+                #    type="messages", 
+                #    chatbot=chatbot
+                #)
+                
+                # User input textfield and buttons
+                with gr.Row(equal_height=True, elem_id="no-shrink"):
                     
-                    # Main chatbot
-                    chatbot = gr.Chatbot()
+                    user_input = gr.Textbox(placeholder="Type your message here…", show_label=False)
+                    submit_btn = gr.Button(value="➤", elem_id="icon-button", interactive=True)
+                
+            # Left sidebar: Chat Selection
+            with gr.Sidebar(width=410):
+
+                # New chat and delete chat
+                with gr.Row():
                     
-                    # User input textfield and buttons
+                    # New Chat button
+                    new_btn = gr.Button("New")
+                    
+                    # Delete Chat button
+                    del_btn = gr.Button("Delete")
+                
+                # Confirmation "dialog"
+                with gr.Group(visible=False) as del_btn_dialog:
+                    gr.Markdown(
+                        '<b>Are you sure you want to delete selected chat?</b>', \
+                        elem_id="del-button-dialog"
+                    )
                     with gr.Row():
-                        
-                        user_input = gr.Textbox(placeholder="Type your message here…", show_label=False)
-                        submit_btn = gr.Button(value="➤", elem_id="icon-button", interactive=True)
+                        del_btn_confirm = gr.Button("Yes", variant="stop")
+                        del_btn_cancle = gr.Button("Cancel")
+                
+                # Chat selector
+                chat_selector = gr.Radio(
+                    choices=cs.get_chat_titles(),
+                    show_label=False,
+                    type="index",
+                    value=cs.get_chat_titles()[0], 
+                    interactive=True,
+                    elem_id="chat-selector"
+                )
             
             #----------------------------------------------------------
             # Register listeners
@@ -458,13 +496,24 @@ class OllamaOnDemandUI:
                 outputs=[],
             )
             
+            # Chatbot: retry
+            chatbot.retry(
+                fn=self.retry,                      # Then stream chat
+                inputs=[],
+                outputs=[chatbot, user_input, submit_btn]
+            ).then(
+                fn=self.update_chat_selector,       # Then update chat title if needed
+                inputs=[],
+                outputs=[chat_selector]
+            )
+
             # User input textfield and buttons
             user_input.submit(
                 fn=self.submit_or_interrupt_event,  # First change submit/interrupt button
                 inputs=[],
                 outputs=[submit_btn]
             ).then(
-                fn=self.stream_chat(),              # Then stream chat
+                fn=self.new_message,              # Then stream chat
                 inputs=[user_input],
                 outputs=[chatbot, user_input, submit_btn]
             ).then(
@@ -477,7 +526,7 @@ class OllamaOnDemandUI:
                 inputs=[],
                 outputs=[submit_btn]
             ).then(
-                fn=self.stream_chat(),              # Then stream chat
+                fn=self.new_message,              # Then stream chat
                 inputs=[user_input],
                 outputs=[chatbot, user_input, submit_btn]
             ).then(
