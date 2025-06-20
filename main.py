@@ -157,7 +157,7 @@ class OllamaOnDemandUI:
     # Event handler
     #------------------------------------------------------------------
     
-    def stream_chat(self):
+    def _stream_chat(self):
         """
         Stream chat (invoked by new/edit/retry).
         
@@ -165,8 +165,7 @@ class OllamaOnDemandUI:
             None
         Output: 
             chat_history:       Current chat history
-            user_input:         Update user input field to ""
-            submit_button_face: Update submit button face
+            user_input:         Update user input field to "" and button face
         """
 
         # Generate next chat results
@@ -183,7 +182,7 @@ class OllamaOnDemandUI:
             delta = chunk.get("message", {}).get("content", "")
             delta = delta.replace("<think>", "(Thinking...)").replace("</think>", "(/Thinking...)")
             self.chat_history[-1]["content"] += delta
-            yield self.chat_history, "", gr.update(value="⏹")
+            yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
     
     def new_message(self, user_message):
         """
@@ -193,22 +192,25 @@ class OllamaOnDemandUI:
             user_message:       User's input
         Output: 
             chat_history:       Current chat history
-            user_input:         Update user input field to ""
-            submit_button_face: Update submit button face
+            user_input:         Update user input field to "" and button face
         """
 
-        # Continue only if it is streaming (not interrupted)
-        if self.is_streaming:
+        # If currently not streaming, start streaming
+        if not self.is_streaming:
+            
+            # Set streaming to True
+            self.is_streaming = True
             
             # Append user message to chat history
-            self.chat_history.append({"role": "user", "content": user_message})
+            self.chat_history.append({"role": "user", "content": user_message["text"]})
             self.chat_history.append({"role": "assistant", "content": ""})
+            yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
 
             # Generate next chat results
-            yield from self.stream_chat()
+            yield from self._stream_chat()
         
         self.is_streaming = False
-        yield self.chat_history, "", gr.update(value="➤")
+        yield self.chat_history, gr.update(value="", submit_btn=True, stop_btn=False)
     
     def retry(self, retry_data: gr.RetryData):
         """
@@ -218,24 +220,25 @@ class OllamaOnDemandUI:
             retry_data:         Event instance (as gr.RetryData)
         Output: 
             chat_history:       Current chat history
-            user_input:         Update user input field to ""
-            submit_button_face: Update submit button face
+            user_input:         Update user input field to "" and button face
         """
 
-        # Gradio will automatically block retry if it is currently streaming. Here it is always not streaming.
-        # Set to streaming and continue
-        self.is_streaming = True
-        #yield self.chat_history, "", gr.update(value="⏹")
-        
-        # Append user message to chat history
-        self.chat_history = self.chat_history[:retry_data.index+1]
-        self.chat_history.append({"role": "assistant", "content": ""})
+        # If currently not streaming, start streaming
+        if not self.is_streaming:
+            
+            # Set to streaming and continue
+            self.is_streaming = True
+            
+            # Append user message to chat history
+            self.chat_history = self.chat_history[:retry_data.index+1]
+            self.chat_history.append({"role": "assistant", "content": ""})
+            yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
 
-        # Generate next chat results
-        yield from self.stream_chat()
+            # Generate next chat results
+            yield from self._stream_chat()
         
         self.is_streaming = False
-        yield self.chat_history, "", gr.update(value="➤")
+        yield self.chat_history, gr.update(value="", submit_btn=True, stop_btn=False)
         
     def update_chat_selector(self):
         """
@@ -266,23 +269,6 @@ class OllamaOnDemandUI:
             cs.set_chat_title(self.chat_index, new_title)
             
         return gr.update(choices=cs.get_chat_titles(), value=cs.get_chat_titles()[self.chat_index])
-    
-    def submit_or_interrupt_event(self):
-        """
-        Handles the button face of submit / interrupt button.
-        
-        Input:
-            None
-        Output: 
-            submit_button_face: Gradio update method to update button face ("value" property)
-        """
-        
-        if self.is_streaming:
-            self.is_streaming = False
-            return gr.update(value="➤")
-        else:
-            self.is_streaming = True
-            return gr.update(value="⏹")
     
     def select_model(self, evt: gr.SelectData):
         """
@@ -392,8 +378,8 @@ class OllamaOnDemandUI:
                     model_dropdown = gr.Dropdown(
                         choices=self.models,
                         value=self.model_selected,
-                        label="Select Model",
-                        interactive=True
+                        interactive=True,
+                        show_label=False
                     )
                 
                 # Main chatbot
@@ -402,21 +388,18 @@ class OllamaOnDemandUI:
                     type="messages",
                     show_copy_button=True,
                     editable="user",
+                    container=False,
                     elem_id="gr-chatbot"
                 )
-                #chatbot_interface = gr.ChatInterface(
-                #    fn=self.new_message,              # Then stream chat
-                #    inputs=[user_input],
-                #    outputs=[chatbot, user_input, submit_btn],
-                #    type="messages", 
-                #    chatbot=chatbot
-                #)
                 
-                # User input textfield and buttons
-                with gr.Row(equal_height=True, elem_id="no-shrink"):
-                    
-                    user_input = gr.Textbox(placeholder="Type your message here…", show_label=False)
-                    submit_btn = gr.Button(value="➤", elem_id="icon-button", interactive=True)
+                # Input field (multimodal)
+                with gr.Row(elem_id="no-shrink"):
+                    user_input = gr.MultimodalTextbox(
+                        placeholder="Type your message here…", 
+                        submit_btn=True,
+                        stop_btn=False,
+                        show_label=False
+                    )
                 
             # Left sidebar: Chat Selection
             with gr.Sidebar(width=410):
@@ -496,39 +479,33 @@ class OllamaOnDemandUI:
                 outputs=[],
             )
             
-            # Chatbot: retry
+            # Chatbot: Retry
             chatbot.retry(
-                fn=self.retry,                      # Then stream chat
+                fn=self.retry,                      # Retry handler
                 inputs=[],
-                outputs=[chatbot, user_input, submit_btn]
+                outputs=[chatbot, user_input]
             ).then(
                 fn=self.update_chat_selector,       # Then update chat title if needed
                 inputs=[],
                 outputs=[chat_selector]
             )
 
-            # User input textfield and buttons
+            # User input: Submit new message
             user_input.submit(
-                fn=self.submit_or_interrupt_event,  # First change submit/interrupt button
-                inputs=[],
-                outputs=[submit_btn]
-            ).then(
-                fn=self.new_message,              # Then stream chat
+                fn=self.new_message,                # New message handler
                 inputs=[user_input],
-                outputs=[chatbot, user_input, submit_btn]
+                outputs=[chatbot, user_input]
             ).then(
                 fn=self.update_chat_selector,       # Then update chat title if needed
                 inputs=[],
                 outputs=[chat_selector]
             )
-            submit_btn.click(
-                fn=self.submit_or_interrupt_event,  # First change submit/interrupt button
-                inputs=[],
-                outputs=[submit_btn]
-            ).then(
-                fn=self.new_message,              # Then stream chat
+            
+            # User input: Stop
+            user_input.stop(
+                fn=self.new_message,                # Stop streaming (run new_message again while self.is_streaming=True)
                 inputs=[user_input],
-                outputs=[chatbot, user_input, submit_btn]
+                outputs=[chatbot, user_input]
             ).then(
                 fn=self.update_chat_selector,       # Then update chat title if needed
                 inputs=[],

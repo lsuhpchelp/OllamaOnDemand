@@ -3,31 +3,49 @@
    ================================================================= */
 /* Main UI column (100 vertical height) */
 #main-column {
-    height: 90vh;             /* Full viewport height */
+    height: 85vh;             /* Full viewport height */
     display: flex;
     flex-direction: column;
     min-height: 0;
-    max-width: 800px;          /* Limit width */
-    margin: 0 auto;            /* Center horizontally */
-    width: 100%;               /* Allow it to shrink on smaller screens */
+    margin: 0 auto;          
+    width: 100%;        
+    justify-content: center;   
+    align-items: center;     
 }
 
-/* Resize chatbot height */
+/* Resize chatbot height, remove border and background */
 #gr-chatbot {
     flex: 1 1 auto;
     min-height: 0;
+    border: none !important;
+    box-shadow: none !important;
+    background: none !important;
+    background-color: transparent !important;
 }
 
-/* Fix icon button size */
-#icon-button {
-    width: 60px;
-    min-width: 60px;
-    max-width: 60px;
-    height: 60px;
+/* Hide chatbot's default clear button */
+#gr-chatbot .top-panel {
+    display: none !important;
+}
+
+/* Transparent background (ChatGPT style)*/
+#gr-chatbot .bot, .bubble-wrap {
+    border: none !important;
+    box-shadow: none !important;
+    background: none !important;
+    background-color: transparent !important;
+}
+
+/* Limit width of conversation (ChatGPT style)*/
+.message-wrap {
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 /* Widgets not supposed to be shrinked */
 #no-shrink {
+    max-width: 800px;
     flex-shrink: 0;
 }
 
