@@ -365,25 +365,28 @@ class OllamaOnDemandUI:
             # Create UI
             #----------------------------------------------------------
             
-            gr.Markdown(
-                "# Ollama OnDemand",
-                elem_id="no-shrink"
-            )
-            
-            # Main
-            with gr.Column(elem_id="main-column"):
-                    
+            # Header
+            with gr.Column(
+                elem_classes=["no-shrink", "main-max-width"]
+            ):
+                
+                # Title
+                gr.Markdown("# Ollama OnDemand")
+                
                 # Model selector
-                with gr.Row(elem_id="no-shrink"):
-                    model_dropdown = gr.Dropdown(
-                        choices=self.models,
-                        value=self.model_selected,
-                        interactive=True,
-                        show_label=False
-                    )
+                model_dropdown = gr.Dropdown(
+                    choices=self.models,
+                    value=self.model_selected,
+                    interactive=True,
+                    show_label=False
+                )
+            
+            # Body
+            with gr.Column(elem_id="gr-chatbot-container"):
                 
                 # Main chatbot
                 chatbot = gr.Chatbot(
+                    height=None,
                     show_label=False,
                     type="messages",
                     show_copy_button=True,
@@ -392,16 +395,20 @@ class OllamaOnDemandUI:
                     elem_id="gr-chatbot"
                 )
                 
-                # Input field (multimodal)
-                with gr.Row(elem_id="no-shrink"):
-                    user_input = gr.MultimodalTextbox(
-                        placeholder="Type your message here…", 
-                        submit_btn=True,
-                        stop_btn=False,
-                        show_label=False
-                    )
+            # Footer
+            with gr.Column(
+                elem_classes=["no-shrink", "main-max-width"]
+            ):
                 
-            # Left sidebar: Chat Selection
+                #Input field (multimodal)
+                user_input = gr.MultimodalTextbox(
+                    placeholder="Type your message here…", 
+                    submit_btn=True,
+                    stop_btn=False,
+                    show_label=False
+                )
+                
+            # Left sidebar: Chat Sessions
             with gr.Sidebar(width=410):
 
                 # New chat and delete chat

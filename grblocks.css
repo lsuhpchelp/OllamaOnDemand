@@ -1,51 +1,9 @@
 /* =================================================================
-    Main
+    All: Apply for entire app
    ================================================================= */
-/* Main UI column (100 vertical height) */
-#main-column {
-    height: 85vh;             /* Full viewport height */
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    margin: 0 auto;          
-    width: 100%;        
-    justify-content: center;   
-    align-items: center;     
-}
-
-/* Resize chatbot height, remove border and background */
-#gr-chatbot {
-    flex: 1 1 auto;
-    min-height: 0;
-    border: none !important;
-    box-shadow: none !important;
-    background: none !important;
-    background-color: transparent !important;
-}
-
-/* Hide chatbot's default clear button */
-#gr-chatbot .top-panel {
-    display: none !important;
-}
-
-/* Transparent background (ChatGPT style)*/
-#gr-chatbot .bot, .bubble-wrap {
-    border: none !important;
-    box-shadow: none !important;
-    background: none !important;
-    background-color: transparent !important;
-}
-
-/* Limit width of conversation (ChatGPT style)*/
-.message-wrap {
-    max-width: 800px;
-    margin-left: auto;
-    margin-right: auto;
-}
 
 /* Widgets not supposed to be shrinked */
-#no-shrink {
-    max-width: 800px;
+.no-shrink {
     flex-shrink: 0;
 }
 
@@ -53,19 +11,88 @@
 footer {
     display: none !important;
 }
+   
+   
+/* =================================================================
+    Main view
+   ================================================================= */
+
+/* Main: Remove side padding and margin to expand entire app's view*/
+.app {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    max-width: 100vw !important;
+}
+
+/* Main: Max width, padding and centering for most widgets*/
+.main-max-width {
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 16px;
+    padding-right: 16px;
+}
+   
+/* Chatbot container (100% height minus fixed header and footer) */
+#gr-chatbot-container {
+    height: calc(100vh - 240px);             /* Full viewport height */
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin: 0 auto;          
+    width: 100%;          
+}
+
+/* Chatbot: Resize height, remove border and background */
+#gr-chatbot {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    margin-left: auto;
+    margin-right: auto;
+    border: none !important;
+    box-shadow: none !important;
+    background: none !important;
+    background-color: transparent !important;
+}
+
+/* Chatbot: Hide default clear button */
+#gr-chatbot .top-panel {
+    display: none !important;
+}
+
+/* Chatbot: Transparent background (ChatGPT style)*/
+#gr-chatbot .bot, .bubble-wrap {
+    border: none !important;
+    box-shadow: none !important;
+    background: none !important;
+    background-color: transparent !important;
+}
+
+/* Chatbot messages: Limit width of conversation (ChatGPT style)*/
+.message-wrap {
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 16px;
+    padding-right: 16px;
+}
 
 
 /* =================================================================
-    Sidebar
+    Left sidebar: Chat sessions
    ================================================================= */
-/* Chat selector label 100% wide */
+   
+/* Chat Selector: Label 100% wide */
 #chat-selector label {
     display: block;
     width: 100%;
     margin-bottom: 4px;
 }
 
-/* Delete button confirmation dialog */
+/* Delete Button: Confirmation dialog */
 #del-button-dialog {
     min-height: 70px;
     display: flex;
