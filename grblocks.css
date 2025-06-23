@@ -37,7 +37,7 @@ footer {
    
 /* Chatbot container (100% height minus fixed header and footer) */
 #gr-chatbot-container {
-    height: calc(100vh - 240px);             /* Full viewport height */
+    height: calc(100vh - 240px);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -63,7 +63,7 @@ footer {
     display: none !important;
 }
 
-/* Chatbot: Transparent background (ChatGPT style)*/
+/* Chatbot: Transparent background and no border/background for AI responses (ChatGPT style)*/
 #gr-chatbot .bot, .bubble-wrap {
     border: none !important;
     box-shadow: none !important;
