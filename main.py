@@ -210,25 +210,6 @@ class OllamaOnDemandUI:
         # Update components
         yield self.chat_history, gr.update(value="", submit_btn=True, stop_btn=False)
     
-    def disable_enable_components(self, N):
-        """
-        Disable or enable components depending on whether it is streaming.
-        
-        Input:
-            N:                  Number of updates
-        Output: 
-            component * N:      N updates
-        """
-        
-        # Set updates base on streaming status
-        if self.is_streaming:
-            update = gr.update(interactive=False)
-        else:
-            update = gr.update(interactive=True)
-        
-        # Update components
-        return tuple([update] * N)
-    
     def new_message(self, user_message):
         """
         When a new message is submitted, set chatbot & input field before start streaming
@@ -300,6 +281,18 @@ class OllamaOnDemandUI:
             cs.set_chat_title(self.chat_index, new_title)
             
         return gr.update(choices=cs.get_chat_titles(), value=cs.get_chat_titles()[self.chat_index])
+        
+    
+    def save_chat_history(self):
+        """
+        Save chat to file in user's workd directory.
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+        cs.save_chats(self.args.workdir)
     
     def select_model(self, evt: gr.SelectData):
         """
@@ -458,7 +451,7 @@ class OllamaOnDemandUI:
                     )
                     with gr.Row():
                         del_btn_confirm = gr.Button("Yes", variant="stop")
-                        del_btn_cancle = gr.Button("Cancel")
+                        del_btn_cancel = gr.Button("Cancel")
                 
                 # Chat selector
                 chat_selector = gr.Radio(
@@ -471,7 +464,47 @@ class OllamaOnDemandUI:
                 )
             
             #----------------------------------------------------------
-            # Register listeners
+            # Event handler workflows
+            #----------------------------------------------------------
+            
+            # After streaming finished workflow:
+            def after_streaming_workflow(event_handler):
+                return (
+                    event_handler.then(
+                        fn=self.update_chat_selector,       # Update chat title if needed
+                        inputs=[],
+                        outputs=[chat_selector]
+                    ).then(
+                        fn=lambda: [gr.update(interactive=True)] * 3,
+                                                            # Re-enable disabled components
+                        inputs=[],
+                        outputs=[chat_selector, new_btn, del_btn]
+                    ).then(
+                        fn=self.save_chat_history,          # Save chat history
+                        inputs=[],
+                        outputs=[]
+                    )
+                )
+            
+            # Basic streaming workflow:
+            def basic_streaming_workflow(event_handler):
+                return (
+                    after_streaming_workflow(
+                        event_handler.then(
+                            fn=lambda: [gr.update(interactive=False)] * 3,
+                                                                # Disable certain components
+                            inputs=[],
+                            outputs=[chat_selector, new_btn, del_btn]
+                        ).then(
+                            fn=self.stream_chat,                # Start streaming
+                            inputs=[],
+                            outputs=[chatbot, user_input]
+                        )
+                    )
+                )
+            
+            #----------------------------------------------------------
+            # Event handlers
             #----------------------------------------------------------
             
             # New chat button
@@ -479,25 +512,37 @@ class OllamaOnDemandUI:
                 fn=self.new_chat,
                 inputs=[],
                 outputs=[chat_selector, chatbot]
+            ).then(
+                fn=self.save_chat_history,              # Save chat history
+                inputs=[],
+                outputs=[]
             )
 
-            # Delete chat button (along with confirmation dialog)
-            del_btn.click(                          # Delete button: Toggle Confirmation dialog
-                lambda: gr.update(visible=True),
+            # Delete chat button
+            del_btn.click(                              # Toggle confirmation dialog
+                fn=lambda: gr.update(visible=True),
                 inputs=[],
                 outputs=[del_btn_dialog]
             )
-            del_btn_confirm.click(                  # Confirm delete: Do it and hide dialog
-                fn=self.delete_chat,
+            
+            # Delete chat: Confirm
+            del_btn_confirm.click(
+                fn=self.delete_chat,                    # Do delete
                 inputs=[],
                 outputs=[chat_selector, chatbot]
             ).then(
-                lambda: gr.update(visible=False),
+                fn=lambda: gr.update(visible=False),    # Hide dialog
                 inputs=[],
                 outputs=[del_btn_dialog]
-            )                                       # Cancel delete: Hide dialog
-            del_btn_cancle.click(
-                lambda: gr.update(visible=False),
+            ).then(
+                fn=self.save_chat_history,              # Save chat history
+                inputs=[],
+                outputs=[]
+            )
+            
+            # Delete chat: Cancel
+            del_btn_cancel.click(                       # Hide dialog
+                fn=lambda: gr.update(visible=False),
                 inputs=[],
                 outputs=[del_btn_dialog]
             )
@@ -517,69 +562,30 @@ class OllamaOnDemandUI:
             )
             
             # Chatbot: Retry
-            chatbot.retry(
-                fn=self.retry,                      # Prepare to retry
-                inputs=[],
-                outputs=[chatbot, user_input]
-            ).then(
-                fn=lambda : self.disable_enable_components(3),  
-                                                    # Disable certain components
-                inputs=[],
-                outputs=[chat_selector, new_btn, del_btn]
-            ).then(
-                fn=self.stream_chat,                # Start streaming
-                inputs=[],
-                outputs=[chatbot, user_input]
-            ).then(
-                fn=self.update_chat_selector,       # Update chat title if needed
-                inputs=[],
-                outputs=[chat_selector]
-            ).then(
-                fn=lambda : self.disable_enable_components(3),  
-                                                    # Re-enable disabled components
-                inputs=[],
-                outputs=[chat_selector, new_btn, del_btn]
+            basic_streaming_workflow(
+                chatbot.retry(
+                    fn=self.retry,
+                    inputs=[],
+                    outputs=[chatbot, user_input]
+                )
             )
 
             # User input: Submit new message
-            user_input.submit(
-                fn=self.new_message,                # Prepare to process new message
-                inputs=[user_input],
-                outputs=[chatbot, user_input]
-            ).then(
-                fn=lambda : self.disable_enable_components(3),  
-                                                    # Disable certain components
-                inputs=[],
-                outputs=[chat_selector, new_btn, del_btn]
-            ).then(
-                fn=self.stream_chat,                # Start streaming
-                inputs=[],
-                outputs=[chatbot, user_input]
-            ).then(
-                fn=self.update_chat_selector,       # Update chat title if needed
-                inputs=[],
-                outputs=[chat_selector]
-            ).then(
-                fn=lambda : self.disable_enable_components(3),  
-                                                    # Re-enable disabled components
-                inputs=[],
-                outputs=[chat_selector, new_btn, del_btn]
+            basic_streaming_workflow(
+                user_input.submit(
+                    fn=self.new_message,
+                    inputs=[user_input],
+                    outputs=[chatbot, user_input]
+                )
             )
             
             # User input: Stop
-            user_input.stop(
-                fn=self.stop_stream_chat,           # Stop streaming (run new_message again while self.is_streaming=True)
-                inputs=[],
-                outputs=[chatbot, user_input]
-            ).then(
-                fn=self.update_chat_selector,       # Update chat title if needed
-                inputs=[],
-                outputs=[chat_selector, new_btn, del_btn]
-            ).then(
-                fn=lambda : self.disable_enable_components(3),  
-                                                    # Re-enable disabled components
-                inputs=[],
-                outputs=[chat_selector, new_btn, del_btn]
+            after_streaming_workflow( 
+                user_input.stop(
+                    fn=self.stop_stream_chat,
+                    inputs=[],
+                    outputs=[chatbot, user_input]
+                )
             )
 
             #----------------------------------------------------------

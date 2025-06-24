@@ -1,5 +1,8 @@
 # Chat sessions management
 
+import os
+import json
+
 chats = [
     {
         "title": "News summary",
@@ -97,3 +100,26 @@ def get_chat_titles():
         chat_titles: List of chat titles
     """
     return [ chat["title"] if chat["title"] else f"New Chat {i+1}" for i, chat in enumerate(chats) ]
+
+def save_chats(workdir):
+    """
+    Save chat history in work directory.
+    
+    Input:
+        workdir:    Work directory
+    Output: 
+        None
+    """
+
+    try:
+        
+        # Create work directory if it does not exist
+        os.makedirs(workdir, exist_ok=True)
+
+        # Dump chats if it is accessible.
+        output_path = os.path.join(workdir, "chats.json")
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(chats, f, indent=2, ensure_ascii=False)
+            
+    except Exception:
+        pass
