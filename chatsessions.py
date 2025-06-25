@@ -5,29 +5,8 @@ import json
 
 chats = [
     {
-        "title": "News summary",
-        "history": [
-            {'role': 'user', 'content': "Hi there!"},
-            {'role': 'assistant', 'content': "Hello! How can I help you today?"},
-            {'role': 'user', 'content': "Can you summarize the news?"},
-            {'role': 'assistant', 'content': "Sure! Here's a brief summary of today's top news..."}
-        ]
-    },
-    { 
-        "title": "Capital of France",
-        "history": 
-        [
-            {'role': 'user', 'content': "What is the capital of France?"},
-            {'role': 'assistant', 'content': "The capital of France is Paris."}
-        ]
-    },
-    { 
-        "title": "Quantum entanglement",
-        "history": 
-        [
-            {'role': 'user', 'content': "Explain quantum entanglement"},
-            {'role': 'assistant', 'content': "Quantum entanglement is a physical phenomenon where particles remain connected such that the state of one affects the other, no matter the distance."}
-        ]
+        "title": "",
+        "history": []
     }
 ]
 
@@ -120,6 +99,27 @@ def save_chats(workdir):
         output_path = os.path.join(workdir, "chats.json")
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(chats, f, indent=2, ensure_ascii=False)
+            
+    except Exception:
+        pass
+
+def load_chats(workdir):
+    """
+    Load chat history in work directory.
+    
+    Input:
+        workdir:    Work directory
+    Output: 
+        None
+    """
+    global chats
+
+    try:
+
+        # Load chats if exists
+        output_path = os.path.join(workdir, "chats.json")
+        with open(output_path, "r", encoding="utf-8") as f:
+            chats = json.load(f)
             
     except Exception:
         pass

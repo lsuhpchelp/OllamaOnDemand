@@ -40,6 +40,7 @@ class OllamaOnDemandUI:
         self.is_streaming = False
         
         # Chat session(s)
+        self.load_chat_history()
         self.update_current_chat(0)                 # Load chat at 0 index. Also initialize:
                                                     #   self.chat_index     - Current chat index
                                                     #   self.chat_title     - Current chat title
@@ -151,6 +152,29 @@ class OllamaOnDemandUI:
             
             # Get chat title
             self.chat_title = cs.get_chat_title(chat_index)
+        
+    def save_chat_history(self):
+        """
+        Save chats to file in user's work directory.
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+        cs.save_chats(self.args.workdir)
+        
+    
+    def load_chat_history(self):
+        """
+        Load chats from file in user's work directory.
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+        cs.load_chats(self.args.workdir)
 
         
     #------------------------------------------------------------------
@@ -183,7 +207,6 @@ class OllamaOnDemandUI:
                 if not self.is_streaming:
                     break
                 delta = chunk.get("message", {}).get("content", "")
-                delta = delta.replace("<think>", "(Thinking...)").replace("</think>", "(/Thinking...)")
                 self.chat_history[-1]["content"] += delta
                 yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
         
@@ -281,18 +304,6 @@ class OllamaOnDemandUI:
             cs.set_chat_title(self.chat_index, new_title)
             
         return gr.update(choices=cs.get_chat_titles(), value=cs.get_chat_titles()[self.chat_index])
-        
-    
-    def save_chat_history(self):
-        """
-        Save chat to file in user's workd directory.
-        
-        Input:
-            None
-        Output: 
-            None
-        """
-        cs.save_chats(self.args.workdir)
     
     def select_model(self, evt: gr.SelectData):
         """
@@ -414,7 +425,7 @@ class OllamaOnDemandUI:
                     type="messages",
                     show_copy_button=True,
                     editable="user",
-                    container=False,
+                    allow_tags=True,
                     elem_id="gr-chatbot"
                 )
                 
