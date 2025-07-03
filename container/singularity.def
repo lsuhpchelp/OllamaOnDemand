@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: ollama/ollama:latest
+From: ollama/ollama:0.9.5
 
 
 ################################################################################
