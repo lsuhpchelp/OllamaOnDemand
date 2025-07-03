@@ -59,7 +59,7 @@ def get_args():
     )
     
     group_server.add_argument(
-        "--workdir", "-w", type=str, default="/work/"+getpass.getuser()+"/OllamaOnDemand",
+        "--workdir", "-w", type=str, default="/work/"+getpass.getuser()+"/.ollamaondemand",
         help="Ollama Ondemand work directory for data storage."
     )
 

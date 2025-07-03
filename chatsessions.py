@@ -96,8 +96,8 @@ def save_chats(workdir):
         os.makedirs(workdir, exist_ok=True)
 
         # Dump chats if it is accessible.
-        output_path = os.path.join(workdir, "chats.json")
-        with open(output_path, "w", encoding="utf-8") as f:
+        file_path = os.path.join(workdir, "chats.json")
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(chats, f, indent=2, ensure_ascii=False)
             
     except Exception:
@@ -117,8 +117,8 @@ def load_chats(workdir):
     try:
 
         # Load chats if exists
-        output_path = os.path.join(workdir, "chats.json")
-        with open(output_path, "r", encoding="utf-8") as f:
+        file_path = os.path.join(workdir, "chats.json")
+        with open(file_path, "r", encoding="utf-8") as f:
             chats = json.load(f)
             
     except Exception:

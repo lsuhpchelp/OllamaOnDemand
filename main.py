@@ -13,6 +13,7 @@ import ollama
 import gradio as gr
 from arg import get_args
 import chatsessions as cs
+import usersettings as us
 
 #======================================================================
 #                           Main UI class
@@ -46,13 +47,16 @@ class OllamaOnDemandUI:
                                                     #   self.chat_title     - Current chat title
                                                     #   self.chat_history   - Current chat history
         
+        # User settings
+        self.settings = self.load_settings()
+        
         # Start Ollama server and save client(s)
         self.start_server()
         self.client = self.get_client()
         
         # Get model(s)
         self.models = self.get_model_list()
-        self.model_selected = self.models[0]
+        self.model_selected = self.settings["model_selected"] if self.settings["model_selected"] in self.models else self.models[0]
 
     
     #------------------------------------------------------------------
@@ -175,6 +179,29 @@ class OllamaOnDemandUI:
             None
         """
         cs.load_chats(self.args.workdir)
+        
+    def save_settings(self):
+        """
+        Save user settings to file in user's work directory.
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+        us.save_settings(self.args.workdir, self.settings)
+        
+    
+    def load_settings(self):
+        """
+        Load user settings from file in user's work directory.
+        
+        Input:
+            None
+        Output: 
+            settings:   User settings dictionary
+        """
+        return us.load_settings(self.args.workdir)
 
         
     #------------------------------------------------------------------
@@ -314,7 +341,13 @@ class OllamaOnDemandUI:
         Output: 
             None
         """
+        
+        # Change selected model
         self.model_selected = evt.value
+        
+        # Save user settings
+        self.settings["model_selected"] = evt.value
+        self.save_settings()
             
     def select_chat(self, evt: gr.SelectData):
         """
