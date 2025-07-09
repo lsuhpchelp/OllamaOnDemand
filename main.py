@@ -538,6 +538,19 @@ class OllamaOnDemandUI:
                 elem_id="chat-selector"
             )
     
+    def build_right(self):
+        """
+        Build right sidebar
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+        
+        with gr.Sidebar(width=410, position="right", label="Settings", open=False):
+            pass
+    
     def register_main(self):
         """
         Register event handlers in main view
@@ -720,6 +733,9 @@ class OllamaOnDemandUI:
                 
             # Build left sidebar: Chat Sessions
             self.build_left()
+                
+            # Build right sidebar: User Settings
+            self.build_right()
             
             #----------------------------------------------------------
             # Event handlers
