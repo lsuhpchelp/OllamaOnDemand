@@ -123,7 +123,7 @@ class OllamaOnDemandUI:
         """
         
         models = [model.model for model in self.client.list().models]
-        return models if models else ["(No model is found. Create a model to continue...)"]
+        return models if models else ["(No model is found. Pull a model to continue...)"]
                     
     def update_current_chat(self, chat_index):
         """
@@ -294,6 +294,28 @@ class OllamaOnDemandUI:
         
         # Append user message to chat history
         self.chat_history[:] = self.chat_history[:retry_data.index+1]
+        self.chat_history.append({"role": "assistant", "content": ""})
+            
+        # Set to streaming and continue
+        self.is_streaming = True
+        
+        # Update components
+        yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
+    
+    def edit(self, edit_data: gr.EditData):
+        """
+        When edit request is sent, set chatbot & input field before start streaming
+        
+        Input:
+            edit_data:          Event instance (as gr.EditData)
+        Output: 
+            chat_history:       Current chat history
+            user_input:         Update user input field to "" and button face
+        """
+        
+        # Append user message to chat history
+        self.chat_history[:] = self.chat_history[:edit_data.index]
+        self.chat_history.append({"role": "user", "content": edit_data.value})
         self.chat_history.append({"role": "assistant", "content": ""})
             
         # Set to streaming and continue
@@ -609,6 +631,15 @@ class OllamaOnDemandUI:
             basic_streaming_workflow(
                 chatbot.retry(
                     fn=self.retry,
+                    inputs=[],
+                    outputs=[chatbot, user_input]
+                )
+            )
+            
+            # Chatbot: Edit
+            basic_streaming_workflow(
+                chatbot.edit(
+                    fn=self.edit,
                     inputs=[],
                     outputs=[chatbot, user_input]
                 )

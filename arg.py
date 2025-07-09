@@ -77,7 +77,7 @@ def get_args():
     )
     
     group_ollama.add_argument(
-        "--ollama-models", type=str, default="/work/"+getpass.getuser()+"/.ollama",
+        "--ollama-models", type=str, default="/project/containers/images/.ollama",
         help="Path to Ollama models."
     )
     
