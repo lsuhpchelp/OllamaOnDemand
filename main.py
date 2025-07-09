@@ -19,6 +19,10 @@ import usersettings as us
 #                           Main UI class
 #======================================================================
 
+class GradioComponents:
+    """An empty class used to same Gradio components."""
+    pass
+
 class OllamaOnDemandUI:
     """Ollama OnDemand UI class."""
     
@@ -57,6 +61,11 @@ class OllamaOnDemandUI:
         # Get model(s)
         self.models = self.get_model_list()
         self.model_selected = self.settings["model_selected"] if self.settings["model_selected"] in self.models else self.models[0]
+        
+        # Gradio components deposit
+        self.gr_main = GradioComponents()           # Main view
+        self.gr_leftbar = GradioComponents()        # Left sidebar
+        self.gr_rightbar = GradioComponents()       # Right sidebar
 
     
     #------------------------------------------------------------------
@@ -435,6 +444,258 @@ class OllamaOnDemandUI:
     # Build UI
     #------------------------------------------------------------------
     
+    def build_main(self):
+        """
+        Build main view
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+            
+        # Header
+        with gr.Column(
+            elem_classes=["no-shrink", "main-max-width"]
+        ):
+            
+            # Title
+            gr.Markdown("# Ollama OnDemand")
+            
+            # Model selector
+            self.gr_main.model_dropdown = gr.Dropdown(
+                choices=self.models,
+                value=self.model_selected,
+                interactive=True,
+                show_label=False
+            )
+        
+        # Body
+        with gr.Column(elem_id="gr-chatbot-container"):
+            
+            # Main chatbot
+            self.gr_main.chatbot = gr.Chatbot(
+                height=None,
+                show_label=False,
+                type="messages",
+                show_copy_button=True,
+                editable="user",
+                allow_tags=True,
+                elem_id="gr-chatbot"
+            )
+            
+        # Footer
+        with gr.Column(
+            elem_classes=["no-shrink", "main-max-width"]
+        ):
+            
+            #Input field (multimodal)
+            self.gr_main.user_input = gr.MultimodalTextbox(
+                placeholder="Ask anything", 
+                submit_btn=True,
+                stop_btn=False,
+                show_label=False
+            )
+    
+    def build_left(self):
+        """
+        Build left sidebar
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+        
+        with gr.Sidebar(width=410):
+
+            # New chat and delete chat
+            with gr.Row():
+                
+                # New Chat button
+                self.gr_leftbar.new_btn = gr.Button("New")
+                
+                # Delete Chat button
+                self.gr_leftbar.del_btn = gr.Button("Delete")
+            
+            # Confirmation "dialog"
+            with gr.Group(visible=False) as self.gr_leftbar.del_btn_dialog:
+                gr.Markdown(
+                    '<b>Are you sure you want to delete selected chat?</b>', \
+                    elem_id="del-button-dialog"
+                )
+                with gr.Row():
+                    self.gr_leftbar.del_btn_confirm = gr.Button("Yes", variant="stop")
+                    self.gr_leftbar.del_btn_cancel = gr.Button("Cancel")
+            
+            # Chat selector
+            self.gr_leftbar.chat_selector = gr.Radio(
+                choices=cs.get_chat_titles(),
+                show_label=False,
+                type="index",
+                value=cs.get_chat_titles()[0], 
+                interactive=True,
+                elem_id="chat-selector"
+            )
+    
+    def register_main(self):
+        """
+        Register event handlers in main view
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+            
+        #----------------------------------------------------------
+        # Event handler workflows
+        #----------------------------------------------------------
+        
+        # After streaming finished workflow:
+        def after_streaming_workflow(event_handler):
+            return (
+                event_handler.then(
+                    fn=self.update_chat_selector,       # Update chat title if needed
+                    inputs=[],
+                    outputs=[self.gr_leftbar.chat_selector]
+                ).then(
+                    fn=lambda: [gr.update(interactive=True)] * 3,
+                                                        # Re-enable disabled components
+                    inputs=[],
+                    outputs=[self.gr_leftbar.chat_selector, \
+                             self.gr_leftbar.new_btn, \
+                             self.gr_leftbar.del_btn]
+                ).then(
+                    fn=self.save_chat_history,          # Save chat history
+                    inputs=[],
+                    outputs=[]
+                )
+            )
+        
+        # Basic streaming workflow:
+        def basic_streaming_workflow(event_handler):
+            return (
+                after_streaming_workflow(
+                    event_handler.then(
+                        fn=lambda: [gr.update(interactive=False)] * 3,
+                                                            # Disable certain components
+                        inputs=[],
+                        outputs=[self.gr_leftbar.chat_selector, \
+                                 self.gr_leftbar.new_btn, \
+                                 self.gr_leftbar.del_btn]
+                    ).then(
+                        fn=self.stream_chat,                # Start streaming
+                        inputs=[],
+                        outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+                    )
+                )
+            )
+            
+        #----------------------------------------------------------
+        # Event handlers
+        #----------------------------------------------------------
+            
+        # Model selector
+        self.gr_main.model_dropdown.select(
+            fn=self.select_model,
+            inputs=[],
+            outputs=[],
+        )
+        
+        # Chatbot: Retry
+        basic_streaming_workflow(
+            self.gr_main.chatbot.retry(
+                fn=self.retry,
+                inputs=[],
+                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+            )
+        )
+        
+        # Chatbot: Edit
+        basic_streaming_workflow(
+            self.gr_main.chatbot.edit(
+                fn=self.edit,
+                inputs=[],
+                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+            )
+        )
+
+        # User input: Submit new message
+        basic_streaming_workflow(
+            self.gr_main.user_input.submit(
+                fn=self.new_message,
+                inputs=[self.gr_main.user_input],
+                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+            )
+        )
+        
+        # User input: Stop
+        after_streaming_workflow( 
+            self.gr_main.user_input.stop(
+                fn=self.stop_stream_chat,
+                inputs=[],
+                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+            )
+        )
+    
+    def register_left(self):
+        """
+        Register event handlers in left sidebar
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+            
+        # New chat button
+        self.gr_leftbar.new_btn.click(
+            fn=self.new_chat,
+            inputs=[],
+            outputs=[self.gr_leftbar.chat_selector, self.gr_main.chatbot]
+        ).then(
+            fn=self.save_chat_history,              # Save chat history
+            inputs=[],
+            outputs=[]
+        )
+
+        # Delete chat button
+        self.gr_leftbar.del_btn.click(              # Toggle confirmation dialog
+            fn=lambda: gr.update(visible=True),
+            inputs=[],
+            outputs=[self.gr_leftbar.del_btn_dialog]
+        )
+        
+        # Delete chat: Confirm
+        self.gr_leftbar.del_btn_confirm.click(
+            fn=self.delete_chat,                    # Do delete
+            inputs=[],
+            outputs=[self.gr_leftbar.chat_selector, self.gr_main.chatbot]
+        ).then(
+            fn=lambda: gr.update(visible=False),    # Hide dialog
+            inputs=[],
+            outputs=[self.gr_leftbar.del_btn_dialog]
+        ).then(
+            fn=self.save_chat_history,              # Save chat history
+            inputs=[],
+            outputs=[]
+        )
+        
+        # Delete chat: Cancel
+        self.gr_leftbar.del_btn_cancel.click(       # Hide dialog
+            fn=lambda: gr.update(visible=False),
+            inputs=[],
+            outputs=[self.gr_leftbar.del_btn_dialog]
+        )
+        
+        # Chat selector
+        self.gr_leftbar.chat_selector.select(
+            fn=self.select_chat,
+            inputs=[],
+            outputs=[self.gr_main.chatbot]
+        )
+    
     def build_ui(self):
         """
         Build UI
@@ -454,214 +715,21 @@ class OllamaOnDemandUI:
             # Create UI
             #----------------------------------------------------------
             
-            # Header
-            with gr.Column(
-                elem_classes=["no-shrink", "main-max-width"]
-            ):
+            # Build main view
+            self.build_main()
                 
-                # Title
-                gr.Markdown("# Ollama OnDemand")
-                
-                # Model selector
-                model_dropdown = gr.Dropdown(
-                    choices=self.models,
-                    value=self.model_selected,
-                    interactive=True,
-                    show_label=False
-                )
-            
-            # Body
-            with gr.Column(elem_id="gr-chatbot-container"):
-                
-                # Main chatbot
-                chatbot = gr.Chatbot(
-                    height=None,
-                    show_label=False,
-                    type="messages",
-                    show_copy_button=True,
-                    editable="user",
-                    allow_tags=True,
-                    elem_id="gr-chatbot"
-                )
-                
-            # Footer
-            with gr.Column(
-                elem_classes=["no-shrink", "main-max-width"]
-            ):
-                
-                #Input field (multimodal)
-                user_input = gr.MultimodalTextbox(
-                    placeholder="Ask anything", 
-                    submit_btn=True,
-                    stop_btn=False,
-                    show_label=False
-                )
-                
-            # Left sidebar: Chat Sessions
-            with gr.Sidebar(width=410):
-
-                # New chat and delete chat
-                with gr.Row():
-                    
-                    # New Chat button
-                    new_btn = gr.Button("New")
-                    
-                    # Delete Chat button
-                    del_btn = gr.Button("Delete")
-                
-                # Confirmation "dialog"
-                with gr.Group(visible=False) as del_btn_dialog:
-                    gr.Markdown(
-                        '<b>Are you sure you want to delete selected chat?</b>', \
-                        elem_id="del-button-dialog"
-                    )
-                    with gr.Row():
-                        del_btn_confirm = gr.Button("Yes", variant="stop")
-                        del_btn_cancel = gr.Button("Cancel")
-                
-                # Chat selector
-                chat_selector = gr.Radio(
-                    choices=cs.get_chat_titles(),
-                    show_label=False,
-                    type="index",
-                    value=cs.get_chat_titles()[0], 
-                    interactive=True,
-                    elem_id="chat-selector"
-                )
-            
-            #----------------------------------------------------------
-            # Event handler workflows
-            #----------------------------------------------------------
-            
-            # After streaming finished workflow:
-            def after_streaming_workflow(event_handler):
-                return (
-                    event_handler.then(
-                        fn=self.update_chat_selector,       # Update chat title if needed
-                        inputs=[],
-                        outputs=[chat_selector]
-                    ).then(
-                        fn=lambda: [gr.update(interactive=True)] * 3,
-                                                            # Re-enable disabled components
-                        inputs=[],
-                        outputs=[chat_selector, new_btn, del_btn]
-                    ).then(
-                        fn=self.save_chat_history,          # Save chat history
-                        inputs=[],
-                        outputs=[]
-                    )
-                )
-            
-            # Basic streaming workflow:
-            def basic_streaming_workflow(event_handler):
-                return (
-                    after_streaming_workflow(
-                        event_handler.then(
-                            fn=lambda: [gr.update(interactive=False)] * 3,
-                                                                # Disable certain components
-                            inputs=[],
-                            outputs=[chat_selector, new_btn, del_btn]
-                        ).then(
-                            fn=self.stream_chat,                # Start streaming
-                            inputs=[],
-                            outputs=[chatbot, user_input]
-                        )
-                    )
-                )
+            # Build left sidebar: Chat Sessions
+            self.build_left()
             
             #----------------------------------------------------------
             # Event handlers
             #----------------------------------------------------------
             
-            # New chat button
-            new_btn.click(
-                fn=self.new_chat,
-                inputs=[],
-                outputs=[chat_selector, chatbot]
-            ).then(
-                fn=self.save_chat_history,              # Save chat history
-                inputs=[],
-                outputs=[]
-            )
-
-            # Delete chat button
-            del_btn.click(                              # Toggle confirmation dialog
-                fn=lambda: gr.update(visible=True),
-                inputs=[],
-                outputs=[del_btn_dialog]
-            )
+            # Register event handlers in main view
+            self.register_main()
             
-            # Delete chat: Confirm
-            del_btn_confirm.click(
-                fn=self.delete_chat,                    # Do delete
-                inputs=[],
-                outputs=[chat_selector, chatbot]
-            ).then(
-                fn=lambda: gr.update(visible=False),    # Hide dialog
-                inputs=[],
-                outputs=[del_btn_dialog]
-            ).then(
-                fn=self.save_chat_history,              # Save chat history
-                inputs=[],
-                outputs=[]
-            )
-            
-            # Delete chat: Cancel
-            del_btn_cancel.click(                       # Hide dialog
-                fn=lambda: gr.update(visible=False),
-                inputs=[],
-                outputs=[del_btn_dialog]
-            )
-            
-            # Chat selector
-            chat_selector.select(
-                fn=self.select_chat,
-                inputs=[],
-                outputs=[chatbot]
-            )
-            
-            # Model selector
-            model_dropdown.select(
-                fn=self.select_model,
-                inputs=[],
-                outputs=[],
-            )
-            
-            # Chatbot: Retry
-            basic_streaming_workflow(
-                chatbot.retry(
-                    fn=self.retry,
-                    inputs=[],
-                    outputs=[chatbot, user_input]
-                )
-            )
-            
-            # Chatbot: Edit
-            basic_streaming_workflow(
-                chatbot.edit(
-                    fn=self.edit,
-                    inputs=[],
-                    outputs=[chatbot, user_input]
-                )
-            )
-
-            # User input: Submit new message
-            basic_streaming_workflow(
-                user_input.submit(
-                    fn=self.new_message,
-                    inputs=[user_input],
-                    outputs=[chatbot, user_input]
-                )
-            )
-            
-            # User input: Stop
-            after_streaming_workflow( 
-                user_input.stop(
-                    fn=self.stop_stream_chat,
-                    inputs=[],
-                    outputs=[chatbot, user_input]
-                )
-            )
+            # Register event handlers in left sidebar
+            self.register_left()
 
             #----------------------------------------------------------
             # Load UI
@@ -670,7 +738,7 @@ class OllamaOnDemandUI:
             self.demo.load(
                 fn=lambda : cs.load_chat(0),
                 inputs=[],
-                outputs=[chatbot]
+                outputs=[self.gr_main.chatbot]
             )
     
     def launch(self):
