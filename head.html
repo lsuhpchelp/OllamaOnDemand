@@ -1,0 +1,119 @@
+<script>
+
+// Select chat
+function select_chat_js(index) {
+    const chatindex_gr = document.getElementById("hidden_input_chatindex").querySelector("input");
+    const action_btn_gr = document.getElementById("hidden_btn_select");
+    if (chatindex_gr && action_btn_gr) {
+    
+        // Updated selected chat in Gradio
+        chatindex_gr.value = index;
+        chatindex_gr.dispatchEvent(new Event("input", { bubbles: true }));
+        action_btn_gr.click();
+        
+        // Update active chat style in JS
+        document.querySelectorAll('.chat-entry').forEach(entry => {
+            entry.classList.remove("active-chat");
+        });
+        document.getElementById("chat-entry-" + index).classList.add("active-chat")
+    }
+}
+
+// Open "..." menu
+function open_menu(index) {
+    close_all_menus();
+    const menu = document.getElementById('chat-menu-' + index);
+    if (menu) menu.style.display = 'block';
+}
+
+// close all menues
+function close_all_menus() {
+    document.querySelectorAll('.chat-menu').forEach(menu => {
+        menu.style.display = 'none';
+    });
+}
+
+// Close all menues when clicking anywhere
+window.addEventListener('click', () => close_all_menus());
+
+// Delete chat
+function delete_chat_js(index) {
+    close_all_menus();
+    if (confirm("Are you sure you want to delete this chat?")) {
+        const chatindex_gr = document.getElementById("hidden_input_chatindex").querySelector("input");
+        const action_btn_gr = document.getElementById("hidden_btn_delete");
+        if (chatindex_gr && action_btn_gr) {
+            chatindex_gr.value = index;
+            chatindex_gr.dispatchEvent(new Event("input", { bubbles: true }));
+            action_btn_gr.click();
+        }
+    }
+}
+
+// Rename chat handler
+function rename_chat_js(index) {
+    close_all_menus();
+    const chat_title = document.getElementById(`chat-title-${index}`);
+    const chat_title_input = document.getElementById(`chat-title-input-${index}`);
+    if (chat_title && chat_title_input) {
+        chat_title.classList.add("hidden");
+        chat_title_input.value = chat_title.textContent
+        chat_title_input.classList.remove("hidden");
+        chat_title_input.focus();
+        chat_title_input.select();
+    }
+}
+
+// Rename chat keydown handler ("Enter" to confirm, "Esc" to cancel)
+function rename_chat_confirm_js(event, index) {
+    if (event.key === "Enter") {
+        rename_chat_submit_js(index);
+    } else if (event.key === "Escape") {
+        rename_chat_cancel_js(index)
+    }
+}
+
+// Cancel renaming
+function rename_chat_cancel_js(index) {
+    const chat_title = document.getElementById(`chat-title-${index}`);
+    const chat_title_input = document.getElementById(`chat-title-input-${index}`);
+    if (chat_title && chat_title_input) {
+        chat_title.classList.remove("hidden");
+        chat_title_input.classList.add("hidden");
+    }
+}
+
+// Submit renaming
+function rename_chat_submit_js(index) {
+    const chat_title_input = document.getElementById(`chat-title-input-${index}`);
+    const chat_title = document.getElementById(`chat-title-${index}`);
+    const chatindex_gr = document.getElementById("hidden_input_chatindex").querySelector("input");
+    const rename_gr = document.getElementById("hidden_input_rename").querySelector("textarea");
+    const action_btn_gr = document.getElementById("hidden_btn_rename");
+
+    if (chat_title_input && chat_title && chatindex_gr && rename_gr && action_btn_gr) {
+    
+        const new_title = chat_title_input.value.trim();
+        
+        // Change chat title in JS
+        chat_title.textContent = new_title
+
+        // Change focus chat index
+        chatindex_gr.value = index;
+        chatindex_gr.dispatchEvent(new Event("input", { bubbles: true }));
+        
+        // Change title rename textarea
+        rename_gr.value = new_title;
+        rename_gr.dispatchEvent(new Event("input", { bubbles: true }));
+        
+        // Click action button to update in Gradio
+        action_btn_gr.click();
+
+        // Restore display state
+        chat_title_input.classList.add("hidden");
+        chat_title.classList.remove("hidden");
+    }
+}
+
+</script>
+

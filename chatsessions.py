@@ -5,7 +5,7 @@ import json
 
 chats = [
     {
-        "title": "",
+        "title": "New Chat",
         "history": []
     }
 ]
@@ -30,7 +30,7 @@ def new_chat():
     Output: 
         chat_history:   List of chat (Gradio chatbox compatible)
     """
-    chats.insert(0, { "title": "", "history": [] })
+    chats.insert(0, { "title": "New Chat", "history": [] })
     return chats[0]["history"]
 
 def delete_chat(index):
@@ -44,7 +44,6 @@ def delete_chat(index):
     """
     if 0 <= index < len(chats):
         del chats[index]
-
 
 def set_chat_title(index, title):
     """

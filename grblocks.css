@@ -11,6 +11,11 @@
 footer {
     display: none !important;
 }
+
+/* Hide helper */
+.hidden {
+    display: none !important;
+}
    
    
 /* =================================================================
@@ -85,20 +90,123 @@ footer {
     Left sidebar: Chat sessions
    ================================================================= */
    
-/* Chat Selector: Label 100% wide */
-#chat-selector label {
+/* Set left sidebar height to 100%, and the sidebar-content to match it*/
+.gradio-container .sidebar {
+    overflow-y: visible !important;
+    height: 100% !important;
+    max-height: none !important;
+}
+.sidebar-content {
+    height: 100% !important;
+}
+
+/* Chat entry block style */
+#chat-list-container {
+    display: block;
+    height: auto !important;
+    overflow: visible !important;
+}
+.html-container {
+    padding: none !important;
+}
+
+.chat-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+}
+
+.chat-entry:hover, .active-chat {
+    background-color: #e0e0e0;
+}
+
+.chat-title {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 15px;
+}
+
+/* Chat menu */
+.menu-btn {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.chat-menu {
+    position: absolute;
+    right: 10px;
+    top: 36px;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    display: none;
+    z-index: 10;
+}
+
+.chat-menu button {
     display: block;
     width: 100%;
-    margin-bottom: 4px;
+    padding: 8px 12px;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
 }
 
-/* Delete Button: Confirmation dialog */
-#del-button-dialog {
-    min-height: 70px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 5em;
+.chat-menu button:hover {
+    background-color: #eee;
 }
 
+/* Rename Dialog */
+.chat-title-input {
+    width: 100%;
+    font-size: 1em;
+    padding: 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: white;
+}
+
+.chat-title-input.hidden {
+    display: none;
+}
+
+/* Dark theme overrides */
+@media (prefers-color-scheme: dark) {
+    
+    /* Chat entry block style */
+    .chat-entry {
+        color: #fff;
+    }
+    .chat-entry:hover, .active-chat {
+        background-color: #3a3a3a;
+    }
+    
+    /* Chat menu */
+    .chat-menu {
+        background-color: #1e1e1e;
+        color: #fff;
+        border-color: #444;
+    }
+    .chat-menu button:hover {
+        background-color: #333;
+    }
+    
+    /* Rename Dialog */
+    .chat-title-input {
+        background-color: #1a1a1a;
+        color: white;
+        border: 1px solid #444;
+    }
+}

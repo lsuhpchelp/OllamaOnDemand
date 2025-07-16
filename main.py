@@ -176,7 +176,6 @@ class OllamaOnDemandUI:
             None
         """
         cs.save_chats(self.args.workdir)
-        
     
     def load_chat_history(self):
         """
@@ -344,7 +343,7 @@ class OllamaOnDemandUI:
         """
                 
         # If current chat does not have a title, ask client to summarize and generate one.
-        if self.chat_title == "":
+        if self.chat_title == "New Chat":
             
             # Generate a chat title, but do not alter chat_history
             response = self.client.chat(
@@ -361,7 +360,93 @@ class OllamaOnDemandUI:
             self.chat_title = new_title
             cs.set_chat_title(self.chat_index, new_title)
             
-        return gr.update(choices=cs.get_chat_titles(), value=cs.get_chat_titles()[self.chat_index])
+        return gr.update(value=self.generate_chat_selector())
+            
+    def select_chat(self, index):
+        """
+        Change selected chat.
+        
+        Input:
+            index:          Chat index
+        Output: 
+            chat_history:   Chat history
+        """
+        
+        # Update current chat
+        self.update_current_chat(index)
+        
+        # Return chat history to chatbot
+        return self.chat_history
+        
+    def new_chat(self):
+        """
+        New chat.
+        
+        Input:
+            None
+        Output: 
+            chat_selector:  Chat selector update
+            chat_history:   Chat history
+        """
+        
+        # Update current chat
+        self.update_current_chat(-1)
+        
+        # Return updated chat selector and current chat
+        return gr.update(value=self.generate_chat_selector()), self.chat_history
+        
+    def rename_chat(self, index, title):
+        """
+        Rename chat.
+        
+        Input:
+            index:          Chat index
+            title:          New chat title
+        Output: 
+            chat_selector:  Chat selector update
+        """
+        
+        # Change chat title
+        cs.set_chat_title(index, title)
+        
+        # Change current chat title if the current chat is being renamed
+        if (self.chat_index == index):
+            self.chat_title = title
+
+    def delete_chat(self, index):
+        """
+        Delete the current chat and update UI.
+        
+        Input:
+            index:          Chat index
+        Output:
+            chat_selector:  Chat selector update
+            chat_history:   Chat history
+        """
+        
+        # Delegate deletion to chatsessions
+        cs.delete_chat(index)
+        num_chats = len(cs.get_chat_titles())
+        print(num_chats)
+        print(self.chat_index, index)
+        
+        # If all has been deleted, create a new one
+        if num_chats == 0:
+        
+            return self.new_chat()
+        
+        # If deleted a previous chat, and current chat_index is not 0, move up
+        elif self.chat_index >= index and self.chat_index > 0:
+        
+            self.chat_index -= 1
+            self.update_current_chat(self.chat_index)
+            return gr.update(value=self.generate_chat_selector()), self.chat_history
+            
+        # Otherwise, keep current chat index and reload
+        else:
+        
+            self.update_current_chat(self.chat_index)
+            return gr.update(value=self.generate_chat_selector()), self.chat_history
     
     def select_model(self, evt: gr.SelectData):
         """
@@ -379,66 +464,7 @@ class OllamaOnDemandUI:
         # Save user settings
         self.settings["model_selected"] = evt.value
         self.save_settings()
-            
-    def select_chat(self, evt: gr.SelectData):
-        """
-        Change selected chat.
         
-        Input:
-            evt:            Event instance (as gr.SelectData) 
-        Output: 
-            chat_history:   Chat history
-        """
-        
-        # Update current chat
-        self.update_current_chat(evt.index)
-        
-        # Return chat history to chatbot
-        return self.chat_history
-        
-    # Register New Chat button
-    def new_chat(self):
-        """
-        Change selected chat.
-        
-        Input:
-            None
-        Output: 
-            chat_selector:  Chat selector update
-            chat_history:   Chat history
-        """
-        
-        # Update current chat
-        self.update_current_chat(-1)
-        
-        # Return updated chat selector and current chat
-        return gr.update(choices=cs.get_chat_titles(), value=cs.get_chat_titles()[0]), self.chat_history
-
-    def delete_chat(self):
-        """
-        Delete the current chat and update UI.
-        
-        Input:
-            None
-        Output:
-            chat_selector:  Chat selector update
-            chat_history:   Chat history
-        """
-        
-        # Delegate deletion to chatsessions
-        cs.delete_chat(self.chat_index)
-        
-        # Adjust selection: try to select next, else previous, else show blank
-        num_chats = len(cs.get_chat_titles())
-        if num_chats == 0:
-            return self.new_chat()
-        else:
-            if self.chat_index >= num_chats:
-                self.chat_index = num_chats - 1  # Move to previous if at end
-            self.update_current_chat(self.chat_index)
-        
-        return gr.update(choices=cs.get_chat_titles(), value=cs.get_chat_titles()[self.chat_index]), self.chat_history
-    
     
     #------------------------------------------------------------------
     # Build UI
@@ -496,6 +522,57 @@ class OllamaOnDemandUI:
                 stop_btn=False,
                 show_label=False
             )
+            
+    def generate_chat_selector(self, interactive=True):
+        """
+        Build chat selector (HTML code)
+        
+        Input:
+            interactive:    Whether the code is responsive to events (Default: True)
+        Output: 
+            html:           Chat selector HTML code
+        """
+        
+        titles = cs.get_chat_titles()
+        html = ""
+        
+        if interactive:
+        
+            for i, title in enumerate(titles):
+                active = "active-chat" if i == self.chat_index else ""
+                html += f"""
+                <div class='chat-entry {active}' onclick="select_chat_js({i})" id='chat-entry-{i}'>
+                    <span class='chat-title' id='chat-title-{i}'>{title}</span>
+                    <input class='chat-title-input hidden' id='chat-title-input-{i}' autocomplete='off'
+                           onkeydown="rename_chat_confirm_js(event, {i})"
+                           onblur="rename_chat_cancel_js({i})" 
+                            onclick="event.stopPropagation()" />
+                    <button class='menu-btn' onclick="event.stopPropagation(); open_menu({i})">⋯</button>
+                    <div class='chat-menu' id='chat-menu-{i}'>
+                        <button onclick="event.stopPropagation(); rename_chat_js({i})">Rename</button>
+                        <button onclick="event.stopPropagation()">Export</button>
+                        <button onclick="event.stopPropagation(); delete_chat_js({i})">Delete</button>
+                    </div>
+                </div>
+
+                """
+                
+        else:
+        
+            for i, title in enumerate(titles):
+                html += f"""
+                <div class='chat-entry'>
+                    <span class='chat-title'>{title}</span>
+                    <button class='menu-btn'>⋯</button>
+                    <div class='chat-menu' id='chat-menu-{i}'>
+                        <button>Rename</button>
+                        <button>Export</button>
+                        <button>Delete</button>
+                    </div>
+                </div>
+                """
+        
+        return html
     
     def build_left(self):
         """
@@ -509,34 +586,20 @@ class OllamaOnDemandUI:
         
         with gr.Sidebar(width=410):
 
-            # New chat and delete chat
-            with gr.Row():
-                
-                # New Chat button
-                self.gr_leftbar.new_btn = gr.Button("New")
-                
-                # Delete Chat button
-                self.gr_leftbar.del_btn = gr.Button("Delete")
-            
-            # Confirmation "dialog"
-            with gr.Group(visible=False) as self.gr_leftbar.del_btn_dialog:
-                gr.Markdown(
-                    '<b>Are you sure you want to delete selected chat?</b>', \
-                    elem_id="del-button-dialog"
-                )
-                with gr.Row():
-                    self.gr_leftbar.del_btn_confirm = gr.Button("Yes", variant="stop")
-                    self.gr_leftbar.del_btn_cancel = gr.Button("Cancel")
+            # New Chat button
+            self.gr_leftbar.new_btn = gr.Button("New Chat")
             
             # Chat selector
-            self.gr_leftbar.chat_selector = gr.Radio(
-                choices=cs.get_chat_titles(),
-                show_label=False,
-                type="index",
-                value=cs.get_chat_titles()[0], 
-                interactive=True,
-                elem_id="chat-selector"
+            self.gr_leftbar.chat_selector = gr.HTML(
+                value=self.generate_chat_selector(),
+                elem_id="chat-list-container"
             )
+            # Hidden elements
+            self.gr_leftbar.hidden_input_chatindex = gr.Number(visible=False, elem_id="hidden_input_chatindex")
+            self.gr_leftbar.hidden_input_rename = gr.Textbox(visible=False, elem_id="hidden_input_rename")
+            self.gr_leftbar.hidden_btn_select = gr.Button(visible=False, elem_id="hidden_btn_select")
+            self.gr_leftbar.hidden_btn_rename = gr.Button(visible=False, elem_id="hidden_btn_rename")
+            self.gr_leftbar.hidden_btn_delete = gr.Button(visible=False, elem_id="hidden_btn_delete")
     
     def build_right(self):
         """
@@ -551,164 +614,6 @@ class OllamaOnDemandUI:
         with gr.Sidebar(width=410, position="right", label="Settings", open=False):
             pass
     
-    def register_main(self):
-        """
-        Register event handlers in main view
-        
-        Input:
-            None
-        Output: 
-            None
-        """
-            
-        #----------------------------------------------------------
-        # Event handler workflows
-        #----------------------------------------------------------
-        
-        # After streaming finished workflow:
-        def after_streaming_workflow(event_handler):
-            return (
-                event_handler.then(
-                    fn=self.update_chat_selector,       # Update chat title if needed
-                    inputs=[],
-                    outputs=[self.gr_leftbar.chat_selector]
-                ).then(
-                    fn=lambda: [gr.update(interactive=True)] * 3,
-                                                        # Re-enable disabled components
-                    inputs=[],
-                    outputs=[self.gr_leftbar.chat_selector, \
-                             self.gr_leftbar.new_btn, \
-                             self.gr_leftbar.del_btn]
-                ).then(
-                    fn=self.save_chat_history,          # Save chat history
-                    inputs=[],
-                    outputs=[]
-                )
-            )
-        
-        # Basic streaming workflow:
-        def basic_streaming_workflow(event_handler):
-            return (
-                after_streaming_workflow(
-                    event_handler.then(
-                        fn=lambda: [gr.update(interactive=False)] * 3,
-                                                            # Disable certain components
-                        inputs=[],
-                        outputs=[self.gr_leftbar.chat_selector, \
-                                 self.gr_leftbar.new_btn, \
-                                 self.gr_leftbar.del_btn]
-                    ).then(
-                        fn=self.stream_chat,                # Start streaming
-                        inputs=[],
-                        outputs=[self.gr_main.chatbot, self.gr_main.user_input]
-                    )
-                )
-            )
-            
-        #----------------------------------------------------------
-        # Event handlers
-        #----------------------------------------------------------
-            
-        # Model selector
-        self.gr_main.model_dropdown.select(
-            fn=self.select_model,
-            inputs=[],
-            outputs=[],
-        )
-        
-        # Chatbot: Retry
-        basic_streaming_workflow(
-            self.gr_main.chatbot.retry(
-                fn=self.retry,
-                inputs=[],
-                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
-            )
-        )
-        
-        # Chatbot: Edit
-        basic_streaming_workflow(
-            self.gr_main.chatbot.edit(
-                fn=self.edit,
-                inputs=[],
-                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
-            )
-        )
-
-        # User input: Submit new message
-        basic_streaming_workflow(
-            self.gr_main.user_input.submit(
-                fn=self.new_message,
-                inputs=[self.gr_main.user_input],
-                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
-            )
-        )
-        
-        # User input: Stop
-        after_streaming_workflow( 
-            self.gr_main.user_input.stop(
-                fn=self.stop_stream_chat,
-                inputs=[],
-                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
-            )
-        )
-    
-    def register_left(self):
-        """
-        Register event handlers in left sidebar
-        
-        Input:
-            None
-        Output: 
-            None
-        """
-            
-        # New chat button
-        self.gr_leftbar.new_btn.click(
-            fn=self.new_chat,
-            inputs=[],
-            outputs=[self.gr_leftbar.chat_selector, self.gr_main.chatbot]
-        ).then(
-            fn=self.save_chat_history,              # Save chat history
-            inputs=[],
-            outputs=[]
-        )
-
-        # Delete chat button
-        self.gr_leftbar.del_btn.click(              # Toggle confirmation dialog
-            fn=lambda: gr.update(visible=True),
-            inputs=[],
-            outputs=[self.gr_leftbar.del_btn_dialog]
-        )
-        
-        # Delete chat: Confirm
-        self.gr_leftbar.del_btn_confirm.click(
-            fn=self.delete_chat,                    # Do delete
-            inputs=[],
-            outputs=[self.gr_leftbar.chat_selector, self.gr_main.chatbot]
-        ).then(
-            fn=lambda: gr.update(visible=False),    # Hide dialog
-            inputs=[],
-            outputs=[self.gr_leftbar.del_btn_dialog]
-        ).then(
-            fn=self.save_chat_history,              # Save chat history
-            inputs=[],
-            outputs=[]
-        )
-        
-        # Delete chat: Cancel
-        self.gr_leftbar.del_btn_cancel.click(       # Hide dialog
-            fn=lambda: gr.update(visible=False),
-            inputs=[],
-            outputs=[self.gr_leftbar.del_btn_dialog]
-        )
-        
-        # Chat selector
-        self.gr_leftbar.chat_selector.select(
-            fn=self.select_chat,
-            inputs=[],
-            outputs=[self.gr_main.chatbot]
-        )
-    
     def build_ui(self):
         """
         Build UI
@@ -721,7 +626,8 @@ class OllamaOnDemandUI:
 
         with gr.Blocks(
             css_paths=os.path.dirname(os.path.abspath(__file__))+'/grblocks.css',
-            title="Ollama OnDemand"
+            title="Ollama OnDemand",
+            head_paths=os.path.dirname(os.path.abspath(__file__))+'/head.html'
         ) as self.demo:
             
             #----------------------------------------------------------
@@ -771,6 +677,196 @@ class OllamaOnDemandUI:
             server_name=self.args.host,
             server_port=self.args.port,
             root_path=self.args.root_path
+        )
+    
+    
+    #------------------------------------------------------------------
+    # Register UI
+    #------------------------------------------------------------------
+    
+    # Workflows
+    
+    def enable_components(self, interactive=True):
+        """
+        Enable or disable components.
+        
+        Input:
+            interactive:    Whether components are interactive
+        Output: 
+            chat_selector:
+            new_btn:
+            del_btn:
+        """
+        
+        return gr.update(value=self.generate_chat_selector(interactive)), \
+               gr.update(interactive=interactive)
+    
+    def after_streaming_workflow(self, event_handler):
+        """
+        After streaming finished workflow
+        
+        Input:
+            event_handler:  Event handlers after input workflow
+        Output: 
+            None
+        """
+        return (
+            event_handler.then(
+                fn=self.update_chat_selector,       # Update chat title if needed
+                inputs=[],
+                outputs=[self.gr_leftbar.chat_selector]
+            ).then(
+                fn=lambda: self.enable_components(True), 
+                                                    # Disable certain components
+                inputs=[],
+                outputs=[self.gr_leftbar.chat_selector, \
+                         self.gr_leftbar.new_btn]
+            ).then(
+                fn=self.save_chat_history,          # Save chat history
+                inputs=[],
+                outputs=[]
+            )
+        )
+    
+    def basic_streaming_workflow(self, event_handler):
+        """
+        Basic streaming workflow
+        
+        Input:
+            event_handler:  Event handlers (excluding before and after)
+        Output: 
+            None
+        """
+        return (
+            self.after_streaming_workflow(
+                event_handler.then(
+                    fn=lambda: self.enable_components(False),
+                                                        # Disable certain components
+                    inputs=[],
+                    outputs=[self.gr_leftbar.chat_selector, \
+                             self.gr_leftbar.new_btn]
+                ).then(
+                    fn=self.stream_chat,                # Start streaming
+                    inputs=[],
+                    outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+                )
+            )
+        )
+    
+    def register_main(self):
+        """
+        Register event handlers in main view
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+            
+        #----------------------------------------------------------
+        # Event handlers
+        #----------------------------------------------------------
+            
+        # Model selector
+        self.gr_main.model_dropdown.select(
+            fn=self.select_model,
+            inputs=[],
+            outputs=[],
+        )
+        
+        # Chatbot: Retry
+        self.basic_streaming_workflow(
+            self.gr_main.chatbot.retry(
+                fn=self.retry,
+                inputs=[],
+                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+            )
+        )
+        
+        # Chatbot: Edit
+        self.basic_streaming_workflow(
+            self.gr_main.chatbot.edit(
+                fn=self.edit,
+                inputs=[],
+                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+            )
+        )
+
+        # User input: Submit new message
+        self.basic_streaming_workflow(
+            self.gr_main.user_input.submit(
+                fn=self.new_message,
+                inputs=[self.gr_main.user_input],
+                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+            )
+        )
+        
+        # User input: Stop
+        self.after_streaming_workflow( 
+            self.gr_main.user_input.stop(
+                fn=self.stop_stream_chat,
+                inputs=[],
+                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+            )
+        )
+    
+    def register_left(self):
+        """
+        Register event handlers in left sidebar
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+            
+        # New chat button
+        self.gr_leftbar.new_btn.click(
+            fn=self.new_chat,
+            inputs=[],
+            outputs=[self.gr_leftbar.chat_selector, self.gr_main.chatbot]
+        ).then(
+            fn=self.save_chat_history,              # Save chat history
+            inputs=[],
+            outputs=[]
+        )
+        
+        # Change selected chat
+        self.gr_leftbar.hidden_btn_select.click(
+            fn=self.select_chat,
+            inputs=[self.gr_leftbar.hidden_input_chatindex],
+            outputs=[self.gr_main.chatbot]
+        )
+        
+        # Rename chat
+        self.gr_leftbar.hidden_btn_rename.click(    # Do rename
+            fn=self.rename_chat,
+            inputs=[self.gr_leftbar.hidden_input_chatindex, self.gr_leftbar.hidden_input_rename],
+            outputs=[]
+        ).then(
+            fn=self.save_chat_history,              # Save chat history
+            inputs=[],
+            outputs=[]
+        )
+
+        """
+        # Export chat (placeholder — implement file download logic as needed)
+        self.gr_leftbar.export_btn.click(
+            fn=lambda idx: cs.load_chat(int(idx)),  # Replace with export logic
+            inputs=[self.gr_leftbar.rename_index],
+            outputs=[],
+        )
+        """
+        
+        # Delete chat
+        self.gr_leftbar.hidden_btn_delete.click(
+            fn=self.delete_chat,                    # Do delete
+            inputs=[self.gr_leftbar.hidden_input_chatindex],
+            outputs=[self.gr_leftbar.chat_selector, self.gr_main.chatbot]
+        ).then(
+            fn=self.save_chat_history,              # Save chat history
+            inputs=[],
+            outputs=[]
         )
 
 
