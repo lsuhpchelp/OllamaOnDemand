@@ -59,7 +59,7 @@ def get_args():
     )
     
     group_server.add_argument(
-        "--workdir", "-w", type=str, default="/work/"+getpass.getuser()+"/.ollamaondemand",
+        "--workdir", "-w", type=str, default="/home/"+getpass.getuser()+"/.ollama/ollamaondemand",
         help="Ollama Ondemand work directory for data storage."
     )
 
@@ -77,7 +77,7 @@ def get_args():
     )
     
     group_ollama.add_argument(
-        "--ollama-models", type=str, default="/project/containers/images/.ollama",
+        "--ollama-models", type=str, default="/home/"+getpass.getuser()+"/.ollama",
         help="Path to Ollama models."
     )
     

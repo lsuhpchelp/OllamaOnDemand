@@ -542,7 +542,7 @@ class OllamaOnDemandUI:
                 active = "active-chat" if i == self.chat_index else ""
                 html += f"""
                 <div class='chat-entry {active}' onclick="select_chat_js({i})" id='chat-entry-{i}'>
-                    <span class='chat-title' id='chat-title-{i}'>{title}</span>
+                    <span class='chat-title' id='chat-title-{i}' title='{title}'>{title}</span>
                     <input class='chat-title-input hidden' id='chat-title-input-{i}' autocomplete='off'
                            onkeydown="rename_chat_confirm_js(event, {i})"
                            onblur="rename_chat_cancel_js({i})" 
@@ -562,7 +562,7 @@ class OllamaOnDemandUI:
             for i, title in enumerate(titles):
                 html += f"""
                 <div class='chat-entry'>
-                    <span class='chat-title'>{title}</span>
+                    <span class='chat-title' title='{title}'>{title}</span>
                     <button class='menu-btn'>⋯</button>
                     <div class='chat-menu' id='chat-menu-{i}'>
                         <button>Rename</button>
