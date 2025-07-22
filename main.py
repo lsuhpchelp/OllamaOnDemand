@@ -68,7 +68,7 @@ class OllamaOnDemandUI:
         self.gr_rightbar = GradioComponents()       # Right sidebar
         
         # Setup Gradio temp files directory
-        os.environ["GRADIO_TEMP_DIR"] = self.args.workdir + "/multimodal_cache"
+        os.environ["GRADIO_TEMP_DIR"] = self.args.workdir + "/cache"
 
     
     #------------------------------------------------------------------
