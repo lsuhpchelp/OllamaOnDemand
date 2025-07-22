@@ -66,6 +66,9 @@ class OllamaOnDemandUI:
         self.gr_main = GradioComponents()           # Main view
         self.gr_leftbar = GradioComponents()        # Left sidebar
         self.gr_rightbar = GradioComponents()       # Right sidebar
+        
+        # Setup Gradio temp files directory
+        os.environ["GRADIO_TEMP_DIR"] = self.args.workdir + "/multimodal_cache"
 
     
     #------------------------------------------------------------------
@@ -86,8 +89,8 @@ class OllamaOnDemandUI:
         process = subprocess.Popen(
             ["ollama", "serve"],
             env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
         )
         
         # Wait until the server starts
@@ -268,19 +271,32 @@ class OllamaOnDemandUI:
         # Update components
         yield self.chat_history, gr.update(value="", submit_btn=True, stop_btn=False)
     
-    def new_message(self, user_message):
+    def new_message(self, user_input):
         """
         When a new message is submitted, set chatbot & input field before start streaming
         
         Input:
-            user_message:       User's input
+            user_input:         User's input
         Output: 
             chat_history:       Current chat history
             user_input:         Update user input field to "" and button face
         """
         
-        # Append user message to chat history
-        self.chat_history.append({"role": "user", "content": user_message["text"]})
+        # Create user message
+        if len(user_input["files"]) > 0:
+            user_message = {
+                "role":     "user", 
+                "content":  user_input["text"],
+                "images":   user_input["files"]
+            }
+        else:
+            user_message = {
+                "role":     "user", 
+                "content":  user_input["text"]
+            }
+            
+        # Append user message to history
+        self.chat_history.append(user_message)
         self.chat_history.append({"role": "assistant", "content": ""})
             
         # Set streaming to True
@@ -300,7 +316,7 @@ class OllamaOnDemandUI:
             user_input:         Update user input field to "" and button face
         """
         
-        # Append user message to chat history
+        # Revert to previous user message
         self.chat_history[:] = self.chat_history[:retry_data.index+1]
         self.chat_history.append({"role": "assistant", "content": ""})
             
@@ -321,9 +337,9 @@ class OllamaOnDemandUI:
             user_input:         Update user input field to "" and button face
         """
         
-        # Append user message to chat history
-        self.chat_history[:] = self.chat_history[:edit_data.index]
-        self.chat_history.append({"role": "user", "content": edit_data.value})
+        # Revert to editted user message
+        self.chat_history[:] = self.chat_history[:edit_data.index+1]
+        self.chat_history[-1]["content"] = edit_data.value
         self.chat_history.append({"role": "assistant", "content": ""})
             
         # Set to streaming and continue
@@ -427,8 +443,6 @@ class OllamaOnDemandUI:
         # Delegate deletion to chatsessions
         cs.delete_chat(index)
         num_chats = len(cs.get_chat_titles())
-        print(num_chats)
-        print(self.chat_index, index)
         
         # If all has been deleted, create a new one
         if num_chats == 0:
@@ -520,7 +534,9 @@ class OllamaOnDemandUI:
                 placeholder="Ask anything", 
                 submit_btn=True,
                 stop_btn=False,
-                show_label=False
+                show_label=False,
+                file_types=["image"],
+                file_count="multiple"
             )
             
     def generate_chat_selector(self, interactive=True):
@@ -623,7 +639,7 @@ class OllamaOnDemandUI:
         Output: 
             None
         """
-
+        
         with gr.Blocks(
             css_paths=os.path.dirname(os.path.abspath(__file__))+'/grblocks.css',
             title="Ollama OnDemand",
