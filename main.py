@@ -244,8 +244,7 @@ class OllamaOnDemandUI:
             for chunk in response:
                 if not self.is_streaming:
                     break
-                delta = chunk.get("message", {}).get("content", "")
-                self.chat_history[-1]["content"] += delta
+                self.chat_history[-1]["content"] += chunk.message.content
                 yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
         
         # Once finished, set streaming to False
@@ -371,7 +370,8 @@ class OllamaOnDemandUI:
             )
             
             # Set new title
-            new_title = response['message']['content']
+            #   Generating and removing <think>*</think> provides the best compatibility between reasoning model and non-reasoning model.
+            new_title = response.message.content
             new_title = re.sub(r"<think>.*?</think>", "", new_title, flags=re.DOTALL).strip()
             self.chat_title = new_title
             cs.set_chat_title(self.chat_index, new_title)
