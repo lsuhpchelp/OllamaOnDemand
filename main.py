@@ -134,7 +134,7 @@ class OllamaOnDemandUI:
             models: List of all model names
         """
         
-        models = [model.model for model in self.client.list().models]
+        models = sorted([model.model for model in self.client.list().models])
         return models if models else ["(No model is found. Pull a model to continue...)"]
                     
     def update_current_chat(self, chat_index):
