@@ -612,24 +612,26 @@ class OllamaOnDemandUI:
             None
         """
         
-        with gr.Sidebar(width=410):
+        with gr.Sidebar(width=350):
 
             # New Chat button
-            self.gr_leftbar.new_btn = gr.Button("New Chat")
+            self.gr_leftbar.new_btn = gr.Button("New Chat", icon=os.path.dirname(os.path.abspath(__file__))+"/images/new_chat.png")
             
             # Chat selector
             self.gr_leftbar.chat_selector = gr.HTML(
                 value=self.generate_chat_selector(),
                 elem_id="chat-list-container"
             )
+            
             # Hidden elements
             self.gr_leftbar.hidden_input_chatindex = gr.Number(visible=False, elem_id="hidden_input_chatindex")
             self.gr_leftbar.hidden_input_rename = gr.Textbox(visible=False, elem_id="hidden_input_rename")
-            self.gr_leftbar.hidden_export_chat = gr.Textbox(visible=False)
+            self.gr_leftbar.hidden_input_export = gr.Textbox(visible=False)
             self.gr_leftbar.hidden_btn_select = gr.Button(visible=False, elem_id="hidden_btn_select")
             self.gr_leftbar.hidden_btn_rename = gr.Button(visible=False, elem_id="hidden_btn_rename")
             self.gr_leftbar.hidden_btn_export = gr.Button(visible=False, elem_id="hidden_btn_export")
             self.gr_leftbar.hidden_btn_delete = gr.Button(visible=False, elem_id="hidden_btn_delete")
+
     
     def build_right(self):
         """
@@ -641,7 +643,7 @@ class OllamaOnDemandUI:
             None
         """
         
-        with gr.Sidebar(width=410, position="right", label="Settings", open=False):
+        with gr.Sidebar(width=350, position="right", label="Settings", open=False):
             pass
     
     def build_ui(self):
@@ -883,11 +885,11 @@ class OllamaOnDemandUI:
         self.gr_leftbar.hidden_btn_export.click(
             fn=self.export_chat,
             inputs=[self.gr_leftbar.hidden_input_chatindex],
-            outputs=[self.gr_leftbar.hidden_export_chat]
+            outputs=[self.gr_leftbar.hidden_input_export]
         ).then(
             fn=None,
             inputs=[],
-            outputs=[self.gr_leftbar.hidden_export_chat],
+            outputs=[self.gr_leftbar.hidden_input_export],
             js="(json) => trigger_json_download('chat_history.json', json)"
         )
         
