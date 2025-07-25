@@ -490,6 +490,20 @@ class OllamaOnDemandUI:
         # Save user settings
         self.settings["model_selected"] = evt.value
         self.save_settings()
+    
+    def enable_components(self, interactive=True):
+        """
+        Enable or disable components.
+        
+        Input:
+            interactive:    Whether components are interactive
+        Output: 
+            chat_selector:
+            new_btn:
+        """
+        
+        return gr.update(value=self.generate_chat_selector(interactive)), \
+               gr.update(interactive=interactive)
         
     
     #------------------------------------------------------------------
@@ -708,7 +722,8 @@ class OllamaOnDemandUI:
         self.demo.launch(
             server_name=self.args.host,
             server_port=self.args.port,
-            root_path=self.args.root_path
+            root_path=self.args.root_path,
+            allowed_paths=[os.path.dirname(os.path.abspath(__file__))]
         )
     
     
@@ -717,21 +732,6 @@ class OllamaOnDemandUI:
     #------------------------------------------------------------------
     
     # Workflows
-    
-    def enable_components(self, interactive=True):
-        """
-        Enable or disable components.
-        
-        Input:
-            interactive:    Whether components are interactive
-        Output: 
-            chat_selector:
-            new_btn:
-            del_btn:
-        """
-        
-        return gr.update(value=self.generate_chat_selector(interactive)), \
-               gr.update(interactive=interactive)
     
     def after_streaming_workflow(self, event_handler):
         """
