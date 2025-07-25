@@ -429,6 +429,18 @@ class OllamaOnDemandUI:
         if (self.chat_index == index):
             self.chat_title = title
 
+    def export_chat(self, index):
+        """
+        Export selected chat as JSON string for browser download.
+        
+        Input:
+            index:          Chat index
+        Output: 
+            history:        Selected chat hisotry
+        """
+        
+        return json.dumps(cs.load_chat(index), indent=2, ensure_ascii=False)
+
     def delete_chat(self, index):
         """
         Delete the current chat and update UI.
@@ -566,7 +578,7 @@ class OllamaOnDemandUI:
                     <button class='menu-btn' onclick="event.stopPropagation(); open_menu({i})">⋯</button>
                     <div class='chat-menu' id='chat-menu-{i}'>
                         <button onclick="event.stopPropagation(); rename_chat_js({i})">Rename</button>
-                        <button onclick="event.stopPropagation()">Export</button>
+                        <button onclick="event.stopPropagation(); export_chat_js({i})">Export</button>
                         <button onclick="event.stopPropagation(); delete_chat_js({i})">Delete</button>
                     </div>
                 </div>
@@ -613,8 +625,10 @@ class OllamaOnDemandUI:
             # Hidden elements
             self.gr_leftbar.hidden_input_chatindex = gr.Number(visible=False, elem_id="hidden_input_chatindex")
             self.gr_leftbar.hidden_input_rename = gr.Textbox(visible=False, elem_id="hidden_input_rename")
+            self.gr_leftbar.hidden_export_chat = gr.Textbox(visible=False)
             self.gr_leftbar.hidden_btn_select = gr.Button(visible=False, elem_id="hidden_btn_select")
             self.gr_leftbar.hidden_btn_rename = gr.Button(visible=False, elem_id="hidden_btn_rename")
+            self.gr_leftbar.hidden_btn_export = gr.Button(visible=False, elem_id="hidden_btn_export")
             self.gr_leftbar.hidden_btn_delete = gr.Button(visible=False, elem_id="hidden_btn_delete")
     
     def build_right(self):
@@ -865,14 +879,17 @@ class OllamaOnDemandUI:
             outputs=[]
         )
 
-        """
-        # Export chat (placeholder — implement file download logic as needed)
-        self.gr_leftbar.export_btn.click(
-            fn=lambda idx: cs.load_chat(int(idx)),  # Replace with export logic
-            inputs=[self.gr_leftbar.rename_index],
-            outputs=[],
+        # Export chat
+        self.gr_leftbar.hidden_btn_export.click(
+            fn=self.export_chat,
+            inputs=[self.gr_leftbar.hidden_input_chatindex],
+            outputs=[self.gr_leftbar.hidden_export_chat]
+        ).then(
+            fn=None,
+            inputs=[],
+            outputs=[self.gr_leftbar.hidden_export_chat],
+            js="(json) => trigger_json_download('chat_history.json', json)"
         )
-        """
         
         # Delete chat
         self.gr_leftbar.hidden_btn_delete.click(
