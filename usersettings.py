@@ -6,7 +6,10 @@ import json
 settings_default = {
     
     # Current selected model
-    "model_selected": ""
+    "model_selected": "",
+    
+    # Generation options
+    "options": {}
     
 }
 

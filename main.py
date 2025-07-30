@@ -10,6 +10,7 @@ import subprocess
 import time
 import re
 import ollama
+from typing import Literal
 import gradio as gr
 from arg import get_args
 import chatsessions as cs
@@ -53,6 +54,7 @@ class OllamaOnDemandUI:
         
         # User settings
         self.settings = self.load_settings()
+        print(self.settings)
         
         # Start Ollama server and save client(s)
         self.start_server()
@@ -60,12 +62,14 @@ class OllamaOnDemandUI:
         
         # Get model(s)
         self.models = self.get_model_list()
-        self.model_selected = self.settings["model_selected"] if self.settings["model_selected"] in self.models else self.models[0]
+        self.model_selected = self.settings["model_selected"] if self.settings.get("model_selected") in self.models else self.models[0]
         
         # Gradio components deposit
         self.gr_main = GradioComponents()           # Main view
         self.gr_leftbar = GradioComponents()        # Left sidebar
         self.gr_rightbar = GradioComponents()       # Right sidebar
+        self.gr_rightbar.settings_components = {}    # User settings: Setting components
+        self.gr_rightbar.settings_defaults = {}      # User settings: Default checkbox
         
         # Setup Gradio temp files directory
         os.environ["GRADIO_TEMP_DIR"] = self.args.workdir + "/cache"
@@ -237,7 +241,8 @@ class OllamaOnDemandUI:
             response = self.client.chat(
                 model = self.model_selected,
                 messages = self.chat_history,
-                stream = True
+                stream = True,
+                options = self.settings.get("options")
             )
 
             # Stream results in chunks while not interrupted
@@ -504,11 +509,125 @@ class OllamaOnDemandUI:
         
         return gr.update(value=self.generate_chat_selector(interactive)), \
                gr.update(interactive=interactive)
+               
+    def settings_param_default_change(self, is_default):
+        """
+        When toggle / untoggle "Use model default" checkbox.
+        
+        Input:
+            is_default:     Whether to use model default
+        Output: 
+            component:      Update visibility of the setting component
+        """
+        
+        return(gr.update(visible=not is_default))
         
     
     #------------------------------------------------------------------
     # Build UI
     #------------------------------------------------------------------
+            
+    def generate_chat_selector(self, interactive=True):
+        """
+        Build chat selector (HTML code)
+        
+        Input:
+            interactive:    Whether the code is responsive to events (Default: True)
+        Output: 
+            html:           Chat selector HTML code
+        """
+        
+        titles = cs.get_chat_titles()
+        html = ""
+        
+        if interactive:
+        
+            for i, title in enumerate(titles):
+                active = "active-chat" if i == self.chat_index else ""
+                html += f"""
+                <div class='chat-entry {active}' onclick="select_chat_js({i})" id='chat-entry-{i}'>
+                    <span class='chat-title' id='chat-title-{i}' title='{title}'>{title}</span>
+                    <input class='chat-title-input hidden' id='chat-title-input-{i}' autocomplete='off'
+                           onkeydown="rename_chat_confirm_js(event, {i})"
+                           onblur="rename_chat_cancel_js({i})" 
+                            onclick="event.stopPropagation()" />
+                    <button class='menu-btn' onclick="event.stopPropagation(); open_menu({i})">⋯</button>
+                    <div class='chat-menu' id='chat-menu-{i}'>
+                        <button onclick="event.stopPropagation(); rename_chat_js({i})">Rename</button>
+                        <button onclick="event.stopPropagation(); export_chat_js({i})">Export</button>
+                        <button onclick="event.stopPropagation(); delete_chat_js({i})">Delete</button>
+                    </div>
+                </div>
+
+                """
+                
+        else:
+        
+            for i, title in enumerate(titles):
+                html += f"""
+                <div class='chat-entry'>
+                    <span class='chat-title' title='{title}'>{title}</span>
+                    <button class='menu-btn'>⋯</button>
+                    <div class='chat-menu' id='chat-menu-{i}'>
+                        <button>Rename</button>
+                        <button>Export</button>
+                        <button>Delete</button>
+                    </div>
+                </div>
+                """
+        
+        return html
+            
+    def generate_settings_component(self, name, component, component_init):
+        """
+        Build each setting component.
+        
+        Input:
+            name:           Name of the parameter. Must be the same as Ollama Python's parameter list
+            component:      Gradio component method reference
+            component_init: Gradio component method initialization arguments
+        Output: 
+            None
+        """
+        
+        # Check user set it to use model default value
+        if (self.settings.get("options") and name in self.settings.get("options")):
+            default = False
+        else:
+            default = True
+        
+        # Build UI components
+        with gr.Row():
+            
+            # Display name
+            gr.Markdown("**" + name.capitalize() + "**")
+            
+            # Default checkbox
+            self.gr_rightbar.settings_defaults[name] = \
+                    gr.Checkbox(label="(Use default)", interactive=True, container=False, value=default)
+                
+        # Build adjusting component
+        value = self.settings.get("options").get(name) if self.settings.get("options") else None
+        self.gr_rightbar.settings_components[name] = component(
+            value = value,
+            label = "",
+            container = False,
+            visible = not default, 
+            interactive = True, 
+            **component_init
+        )
+        
+        # Add separator
+        gr.Markdown("")
+        gr.Markdown("---")
+        gr.Markdown("")
+        
+        # Register checkbox behavior
+        self.gr_rightbar.settings_defaults[name].change(
+            fn = self.settings_param_default_change,
+            inputs = [self.gr_rightbar.settings_defaults[name]],
+            outputs = [self.gr_rightbar.settings_components[name]]
+        )
     
     def build_main(self):
         """
@@ -564,57 +683,6 @@ class OllamaOnDemandUI:
                 file_types=["image"],
                 file_count="multiple"
             )
-            
-    def generate_chat_selector(self, interactive=True):
-        """
-        Build chat selector (HTML code)
-        
-        Input:
-            interactive:    Whether the code is responsive to events (Default: True)
-        Output: 
-            html:           Chat selector HTML code
-        """
-        
-        titles = cs.get_chat_titles()
-        html = ""
-        
-        if interactive:
-        
-            for i, title in enumerate(titles):
-                active = "active-chat" if i == self.chat_index else ""
-                html += f"""
-                <div class='chat-entry {active}' onclick="select_chat_js({i})" id='chat-entry-{i}'>
-                    <span class='chat-title' id='chat-title-{i}' title='{title}'>{title}</span>
-                    <input class='chat-title-input hidden' id='chat-title-input-{i}' autocomplete='off'
-                           onkeydown="rename_chat_confirm_js(event, {i})"
-                           onblur="rename_chat_cancel_js({i})" 
-                            onclick="event.stopPropagation()" />
-                    <button class='menu-btn' onclick="event.stopPropagation(); open_menu({i})">⋯</button>
-                    <div class='chat-menu' id='chat-menu-{i}'>
-                        <button onclick="event.stopPropagation(); rename_chat_js({i})">Rename</button>
-                        <button onclick="event.stopPropagation(); export_chat_js({i})">Export</button>
-                        <button onclick="event.stopPropagation(); delete_chat_js({i})">Delete</button>
-                    </div>
-                </div>
-
-                """
-                
-        else:
-        
-            for i, title in enumerate(titles):
-                html += f"""
-                <div class='chat-entry'>
-                    <span class='chat-title' title='{title}'>{title}</span>
-                    <button class='menu-btn'>⋯</button>
-                    <div class='chat-menu' id='chat-menu-{i}'>
-                        <button>Rename</button>
-                        <button>Export</button>
-                        <button>Delete</button>
-                    </div>
-                </div>
-                """
-        
-        return html
     
     def build_left(self):
         """
@@ -637,7 +705,7 @@ class OllamaOnDemandUI:
                 elem_id="chat-list-container"
             )
             
-            # Hidden elements
+            # Hidden elements (For customized JS responses)
             self.gr_leftbar.hidden_input_chatindex = gr.Number(visible=False, elem_id="hidden_input_chatindex")
             self.gr_leftbar.hidden_input_rename = gr.Textbox(visible=False, elem_id="hidden_input_rename")
             self.gr_leftbar.hidden_input_export = gr.Textbox(visible=False)
@@ -657,8 +725,46 @@ class OllamaOnDemandUI:
             None
         """
         
-        with gr.Sidebar(width=350, position="right", label="Settings", open=False):
-            pass
+        with gr.Sidebar(width=350, position="right", label="Settings", open=True):
+            
+            # Title
+            gr.Markdown("## User Settings")
+            
+            # Table 1: Generation parameters
+            with gr.Tab("Parameters"):
+                
+                self.generate_settings_component(\
+                    name = "temperature", 
+                    component = gr.Slider,
+                    component_init = {
+                        "minimum":              0,
+                        "maximum":              1,
+                        "show_reset_button":    False       
+                    }
+                )
+                
+                self.generate_settings_component(\
+                    name = "top_p", 
+                    component = gr.Slider,
+                    component_init = {
+                        "minimum":              0,
+                        "maximum":              1,
+                        "show_reset_button":    False       
+                    }
+                )
+                
+                self.generate_settings_component(\
+                    name = "top_k", 
+                    component = gr.Number,
+                    component_init = {
+                        "minimum":              0,
+                        "precision":            0      
+                    }
+                )
+            
+            # Table 2: Ollama Models
+            with gr.Tab("Models"):
+                pass
     
     def build_ui(self):
         """
