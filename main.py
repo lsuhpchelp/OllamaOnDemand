@@ -54,7 +54,6 @@ class OllamaOnDemandUI:
         
         # User settings
         self.settings = self.load_settings()
-        print(self.settings)
         
         # Start Ollama server and save client(s)
         self.start_server()
@@ -510,17 +509,75 @@ class OllamaOnDemandUI:
         return gr.update(value=self.generate_chat_selector(interactive)), \
                gr.update(interactive=interactive)
                
-    def settings_param_default_change(self, is_default):
+    def settings_param_default_change(self, name, value, is_default):
         """
-        When toggle / untoggle "Use model default" checkbox.
+        In User Settings -> Parameters, when toggle / untoggle "Use default" checkbox.
         
         Input:
+            name:           Name of the parameter to change
+            value:          Value of the parameter to change
             is_default:     Whether to use model default
         Output: 
             component:      Update visibility of the setting component
         """
         
+        # Save updated "options" dictionary
+        
+        # If "options" dictionary exists in settings
+        if (self.settings.get("options")):
+        
+            # If not using default, save customized value to "options" dictionary
+            if (not is_default):
+                
+                self.settings["options"][name] = value
+                
+            # If using default, remove the key from "options" dictionary
+            else:
+            
+                if (name in self.settings["options"]):
+                    del self.settings["options"][name]
+        
+        # Or if not
+        else:
+        
+            # If not using default, save customized value to "options" dictionary
+            if (not is_default):
+                
+                self.settings["options"] = {name: value}
+                
+            # If using default, remove the key from "options" dictionary
+            else:
+            
+                self.settings["options"] = {}
+        
+        self.save_settings()
+        
         return(gr.update(visible=not is_default))
+               
+    def settings_param_value_change(self, name, value):
+        """
+        In User Settings -> Parameters, when adjusting individual setting
+        
+        Input:
+            name:           Name of the parameter to change
+            value:          Value of the parameter to change
+        Output: 
+            None
+        """
+        
+        # Save updated "options" dictionary
+        
+        # If "options" dictionary exists in settings
+        if (self.settings.get("options")):
+        
+            self.settings["options"][name] = value
+        
+        # Or if not
+        else:
+        
+            self.settings["options"] = {name: value}
+        
+        self.save_settings()
         
     
     #------------------------------------------------------------------
@@ -604,14 +661,16 @@ class OllamaOnDemandUI:
             
             # Default checkbox
             self.gr_rightbar.settings_defaults[name] = \
-                    gr.Checkbox(label="(Use default)", interactive=True, container=False, value=default)
+                gr.Checkbox(label="(Use default)", 
+                            interactive=True, 
+                            container=False, 
+                            value=default,
+                            min_width=None)
                 
         # Build adjusting component
         value = self.settings.get("options").get(name) if self.settings.get("options") else None
         self.gr_rightbar.settings_components[name] = component(
             value = value,
-            label = "",
-            container = False,
             visible = not default, 
             interactive = True, 
             **component_init
@@ -619,14 +678,20 @@ class OllamaOnDemandUI:
         
         # Add separator
         gr.Markdown("")
-        gr.Markdown("---")
         gr.Markdown("")
         
         # Register checkbox behavior
         self.gr_rightbar.settings_defaults[name].change(
-            fn = self.settings_param_default_change,
-            inputs = [self.gr_rightbar.settings_defaults[name]],
+            fn = lambda arg_value, arg_is_default: self.settings_param_default_change(name, arg_value, arg_is_default),
+            inputs = [self.gr_rightbar.settings_components[name], self.gr_rightbar.settings_defaults[name]],
             outputs = [self.gr_rightbar.settings_components[name]]
+        )
+        
+        # Register adjusting component behavior
+        self.gr_rightbar.settings_components[name].change(
+            fn = lambda arg_value: self.settings_param_value_change(name, arg_value),
+            inputs = [self.gr_rightbar.settings_components[name]],
+            outputs = []
         )
     
     def build_main(self):
@@ -734,11 +799,22 @@ class OllamaOnDemandUI:
             with gr.Tab("Parameters"):
                 
                 self.generate_settings_component(\
-                    name = "temperature", 
-                    component = gr.Slider,
+                    name = "num_predict", 
+                    component = gr.Number,
                     component_init = {
+                        "label":                "(Maximum number of tokens)",
                         "minimum":              0,
-                        "maximum":              1,
+                        "precision":            0      
+                    }
+                )
+                
+                self.generate_settings_component(\
+                    name = "temperature",
+                    component = gr.Slider,
+                    component_init = { 
+                        "label":                "(Randomness)",
+                        "minimum":              0,
+                        "maximum":              2,
                         "show_reset_button":    False       
                     }
                 )
@@ -747,6 +823,7 @@ class OllamaOnDemandUI:
                     name = "top_p", 
                     component = gr.Slider,
                     component_init = {
+                        "label":                "(Nucleus sampling)",
                         "minimum":              0,
                         "maximum":              1,
                         "show_reset_button":    False       
@@ -757,7 +834,39 @@ class OllamaOnDemandUI:
                     name = "top_k", 
                     component = gr.Number,
                     component_init = {
+                        "label":                "(Considers only top K next tokens)",
                         "minimum":              0,
+                        "precision":            0      
+                    }
+                )
+                
+                self.generate_settings_component(\
+                    name = "presence_penalty", 
+                    component = gr.Slider,
+                    component_init = {
+                        "label":                "(Penalty for repeating tokens)",
+                        "minimum":              -2,
+                        "maximum":              2,
+                        "show_reset_button":    False       
+                    }
+                )
+                
+                self.generate_settings_component(\
+                    name = "frequency_penalty", 
+                    component = gr.Slider,
+                    component_init = {
+                        "label":                "(Penalty for frequent tokens)",
+                        "minimum":              -2,
+                        "maximum":              2,
+                        "show_reset_button":    False       
+                    }
+                )
+                
+                self.generate_settings_component(\
+                    name = "seed", 
+                    component = gr.Number,
+                    component_init = {
+                        "label":                "(Random seed)",
                         "precision":            0      
                     }
                 )
