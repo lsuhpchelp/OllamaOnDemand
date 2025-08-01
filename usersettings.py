@@ -9,7 +9,11 @@ settings_default = {
     "model_selected": "",
     
     # Generation options
-    "options": {}
+    "options": {},
+    
+    # Path to Ollama models 
+    #   (If non-exists, use default path defined on "--ollama-models" command line argument)
+    "ollama_models": None
     
 }
 

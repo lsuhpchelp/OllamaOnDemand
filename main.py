@@ -8,6 +8,7 @@ import requests
 import json
 import subprocess
 import time
+import requests
 import re
 import ollama
 from typing import Literal
@@ -55,12 +56,16 @@ class OllamaOnDemandUI:
         # User settings
         self.settings = self.load_settings()
         
+        # If user did not customize model path, use default value in argument
+        if (not self.settings.get("ollama_models")):
+            self.settings["ollama_models"] = self.args.ollama_models
+        
         # Start Ollama server and save client(s)
         self.start_server()
         self.client = self.get_client()
         
         # Get model(s)
-        self.models = self.get_model_list()
+        self.models = self.list_installed_model()
         self.model_selected = self.settings["model_selected"] if self.settings.get("model_selected") in self.models else self.models[0]
         
         # Gradio components deposit
@@ -84,7 +89,7 @@ class OllamaOnDemandUI:
         # Define environment variables
         env = os.environ.copy()
         env["OLLAMA_HOST"] = self.args.ollama_host
-        env["OLLAMA_MODELS"] = self.args.ollama_models
+        env["OLLAMA_MODELS"] = self.settings["ollama_models"]
         env["OLLAMA_SCHED_SPREAD"] = self.args.ollama_spread_gpu
 
         # Start the Ollama server
@@ -127,18 +132,54 @@ class OllamaOnDemandUI:
     # Misc utilities
     #------------------------------------------------------------------
     
-    def get_model_list(self):
+    def list_installed_model(self):
         """
-        Get list of models.
+        List all installed models.
         
         Input:
             None
         Output: 
-            models: List of all model names
+            models:     List of all model names
         """
         
         models = sorted([model.model for model in self.client.list().models])
         return models if models else ["(No model is found. Pull a model to continue...)"]
+    
+    def list_remote_model(self):
+        """
+        List all remote models.
+        
+        Input:
+            None
+        Output: 
+            models:     Dictionary like {"model_name": ["tag1", "tag2", ...], ...}
+        """
+        
+        # Step 1: Fetch the HTML content from Ollama model search
+        #       This should only fetch officially maintained model, not user pushed
+        html = requests.get("https://ollama.com/search").text
+
+        # Step 2: Extract relevant lines
+        lines = [line for line in html.splitlines() if 'x-test-search-response-title' in line or 'x-test-size' in line]
+
+        # Step 3: Substitute the tag for title with "Model:"
+        lines = [line.replace("x-test-search-response-title>", "x-test-search-response-title>Model:") for line in lines]
+
+        # Step 4: Strip HTML tags and spaces
+        lines = [re.sub(r'<[^>]*>', '', line).replace(" ", "") for line in lines]
+        
+        # Step 5: Return formatted dictionary
+        model_dict = {}
+        current_model = None
+        for line in lines:
+            if line.startswith("Model:"):
+                current_model = line[len("Model:"):]  # Strip "Model:" prefix
+                model_dict[current_model] = []
+            elif current_model:
+                model_dict[current_model].append(line)
+        
+        # Return results
+        return(model_dict)
                     
     def update_current_chat(self, chat_index):
         """
@@ -668,7 +709,7 @@ class OllamaOnDemandUI:
                             min_width=None)
                 
         # Build adjusting component
-        value = self.settings.get("options").get(name) if self.settings.get("options") else None
+        value = self.settings.get("options").get(name) if self.settings.get("options") else 0
         self.gr_rightbar.settings_components[name] = component(
             value = value,
             visible = not default, 
@@ -677,7 +718,6 @@ class OllamaOnDemandUI:
         )
         
         # Add separator
-        gr.Markdown("")
         gr.Markdown("")
         
         # Register checkbox behavior
@@ -873,6 +913,7 @@ class OllamaOnDemandUI:
             
             # Table 2: Ollama Models
             with gr.Tab("Models"):
+                
                 pass
     
     def build_ui(self):
