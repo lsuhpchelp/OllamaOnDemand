@@ -56,16 +56,22 @@ class OllamaOnDemandUI:
         # User settings
         self.settings = self.load_settings()
         
-        # If user did not customize model path, use default value in argument
-        if (not self.settings.get("ollama_models")):
+        # Use default model path if:
+        #   1) User did not customize model path, or
+        #   2) Model path not writable and not a legal model path
+        if (not self.settings.get("ollama_models") or \
+            not os.access(self.settings.get("ollama_models"), os.W_OK) and \
+            not self.is_model_path(self.settings.get("ollama_models"))):
             self.settings["ollama_models"] = self.args.ollama_models
+            self.save_settings()
         
         # Start Ollama server and save client(s)
         self.start_server()
         self.client = self.get_client()
         
-        # Get model(s)
-        self.models = self.list_installed_model()
+        # Get models
+        self.models = self.list_installed_models()          # Installed models (List)
+        self.remote_models = self.dict_remote_models()      # Remote models (Dict)
         self.model_selected = self.settings["model_selected"] if self.settings.get("model_selected") in self.models else self.models[0]
         
         # Gradio components deposit
@@ -83,8 +89,15 @@ class OllamaOnDemandUI:
     # Server connection
     #------------------------------------------------------------------
         
-    def start_server(self):
-        """Start Ollama Server"""
+    def start_server(self, raise_error=True):
+        """
+        Start Ollama Server
+        
+        Input:
+            None
+        Output:
+            None (raise error) or error message (return for gr.Error)
+        """
         
         # Define environment variables
         env = os.environ.copy()
@@ -94,7 +107,7 @@ class OllamaOnDemandUI:
 
         # Start the Ollama server
         print("Starting Ollama server on " + self.args.ollama_host)
-        process = subprocess.Popen(
+        self.server_process = subprocess.Popen(
             ["ollama", "serve"],
             env=env,
             stdout=subprocess.DEVNULL,
@@ -103,16 +116,22 @@ class OllamaOnDemandUI:
         
         # Wait until the server starts
         for _ in range(60): 
+            
             try:
                 if requests.get(self.args.ollama_host).ok:
                     print("Ollama server is running")
-                    break
+                    return
             except:
                 pass
             print("Waiting for Ollama server to start...")
             time.sleep(1)
+            
         else:
-            raise RuntimeError("Ollama server failed to start in 1 min. Something is wrong.")
+            
+            if (raise_error):
+                raise RuntimeError("Ollama server failed to start in 1 min. Something is wrong.")
+            else:
+                return("Ollama server failed to start in 1 min. Something is wrong.")
             
     def get_client(self, type="ollama"):
         """
@@ -132,7 +151,7 @@ class OllamaOnDemandUI:
     # Misc utilities
     #------------------------------------------------------------------
     
-    def list_installed_model(self):
+    def list_installed_models(self):
         """
         List all installed models.
         
@@ -143,11 +162,34 @@ class OllamaOnDemandUI:
         """
         
         models = sorted([model.model for model in self.client.list().models])
-        return models if models else ["(No model is found. Pull a model to continue...)"]
+        return models if models else ["(No model is found. Pull a model or change model directory to continue...)"]
     
-    def list_remote_model(self):
+    def dict_installed_models(self):
         """
-        List all remote models.
+        List all installed models in dictionary form.
+        
+        Input:
+            None
+        Output: 
+            models:     Dictionary like {"model_name": ["tag1", "tag2", ...], ...}
+        """
+        
+        model_dict = {}
+        
+        for model in self.models:
+            
+            name, tag = model.split(":")
+            
+            if (name in model_dict):
+                model_dict[name].append(tag)
+            else:
+                model_dict[name] = [tag]
+        
+        return model_dict
+    
+    def dict_remote_models(self):
+        """
+        List all remote models in dictionary form.
         
         Input:
             None
@@ -180,6 +222,24 @@ class OllamaOnDemandUI:
         
         # Return results
         return(model_dict)
+        
+    def is_model_path(self, model_path):
+        """
+        Check whether a path is a model path that will not cause problem launching Ollama server.
+        As of 8/6/2025, a non-writable model directory should container: 
+            - A "blobs" directory
+            - A non-empty or removable "manifests" directory)
+            
+        Input:
+            None
+        Output: 
+            bool
+        """
+        
+        return(os.access(model_path, os.R_OK) \
+                and os.access(model_path+"/blobs", os.R_OK) \
+                and os.access(model_path+"/manifests", os.R_OK) \
+                and len(os.listdir(model_path+"/manifests")) > 0)
                     
     def update_current_chat(self, chat_index):
         """
@@ -619,6 +679,117 @@ class OllamaOnDemandUI:
             self.settings["options"] = {name: value}
         
         self.save_settings()
+               
+    def settings_model_path_change(self, model_path):
+        """
+        In User Settings -> Models, when changing the model path
+        
+        Input:
+            model_path:         Model path
+        Output: 
+            error:              Error message
+            gr.update:          Update to model selector 
+            gr.update:          Update to model path
+            gr.update * 2:      Updates to model path buttons
+            gr.update * 4:      Updates to model installation components
+        """
+        
+        model_path_old = self.settings["ollama_models"]
+        enable_model_installation = False
+        
+        # If path is writable, change model path and enable model installation
+        if (os.access(model_path, os.W_OK)):
+            
+            # Update model path
+            self.settings["ollama_models"] = model_path
+            
+            # Restart Ollama server and re-list models
+            self.server_process.kill()
+            self.server_process.wait()
+            error = self.start_server(raise_error=False)
+            
+            # If error, raise error message, reset everything
+            if (error):
+                
+                # Reset user settings
+                elf.settings["ollama_models"] = model_path_old
+                
+                # Re-restart
+                self.server_process.kill()
+                self.server_process.wait()
+                self.start_server(raise_error=False)
+            
+            # If successfully started, return correctly
+            else:
+                
+                # Update model list
+                self.models = self.list_installed_models()
+                
+                # Save user settings
+                self.save_settings()
+                
+                # Enable model installation
+                enable_model_installation = True
+            
+        # If not writable
+        else:
+            
+            # If the path is accessible and contains models, change model path but disable model installation
+            if (self.is_model_path(model_path)):
+            
+                # Update model path
+                self.settings["ollama_models"] = model_path
+                
+                # Restart Ollama server and re-list models
+                self.server_process.kill()
+                self.server_process.wait()
+                error = self.start_server(raise_error=False)
+                
+                # If error, raise error message, reset everything
+                if (error):
+                    
+                    # Reset user settings
+                    elf.settings["ollama_models"] = model_path_old
+                    
+                    # Re-restart
+                    self.server_process.kill()
+                    self.server_process.wait()
+                    self.start_server(raise_error=False)
+            
+                # If successfully started, return correctly
+                else:
+                    
+                    # Update model list
+                    self.models = self.list_installed_models()
+                    
+                    # Save user settings
+                    self.save_settings()
+                
+            # If not, reset model path and raise error
+            else:
+                
+                # Error message
+                error = "Directory does not exist, you do not have access, or does not contain Ollama model!"
+                
+        # Return
+        return  [error,
+                 gr.update(choices=self.models, value=self.models[0], interactive=True),
+                 gr.update(value=self.settings["ollama_models"], interactive=True)] + \
+                [gr.update(interactive=True)] * 2 + \
+                [gr.update(interactive=enable_model_installation)] * 4
+                    
+    def raise_error(self, error):
+        """
+        Raise an error message
+        
+        Input:
+            error:              Error message
+        Output: 
+            None
+        """
+        
+        if error:
+            raise gr.Error(error)
         
     
     #------------------------------------------------------------------
@@ -914,7 +1085,54 @@ class OllamaOnDemandUI:
             # Table 2: Ollama Models
             with gr.Tab("Models"):
                 
-                pass
+                gr.Markdown("### Ollama Model Directory")
+
+                # Directory picker
+                self.gr_rightbar.model_path_text = gr.Textbox(
+                    value=self.settings["ollama_models"],
+                    label="",
+                    max_lines=1,
+                    container=False,
+                    interactive=True,
+                    elem_id="dir-path",
+                    #submit_btn="📁",      # TODO: Change this to an actual file picker
+                )
+                
+                # Action buttons
+                with gr.Row():
+                    
+                    # Save button
+                    self.gr_rightbar.model_path_save = gr.Button(
+                        "💾 Save",
+                        min_width=0
+                    )
+                    self.gr_rightbar.model_path_reset = gr.Button(
+                        "🔄 Reset",
+                        min_width=0
+                    )
+                    
+                    # Reset button
+                
+                gr.HTML("")
+                
+                gr.Markdown("### Install Models")
+
+                # List remote models to install
+                self.gr_rightbar.model_install_names = gr.Dropdown(
+                    choices=sorted(list(self.remote_models.keys())),
+                    label="Model Name",
+                    interactive=True
+                )
+                self.gr_rightbar.model_install_tags = gr.Dropdown(
+                    choices=self.remote_models[sorted(list(self.remote_models.keys()))[0]],
+                    label="Model Tag",
+                    interactive=True
+                )
+                
+                # Pull button
+                with gr.Row():
+                    self.gr_rightbar.model_install_btn = gr.Button("⬇️ Install Selected Model")
+                    self.gr_rightbar.model_remove_btn = gr.Button("❌ Remove Selected Model")
     
     def build_ui(self):
         """
@@ -954,6 +1172,9 @@ class OllamaOnDemandUI:
             
             # Register event handlers in left sidebar
             self.register_left()
+            
+            # Register event handlers in right sidebar
+            self.register_right()
 
             #----------------------------------------------------------
             # Load UI
@@ -1157,6 +1378,124 @@ class OllamaOnDemandUI:
         ).then(
             fn=self.save_chat_history,              # Save chat history
             inputs=[],
+            outputs=[]
+        )
+    
+    def register_right(self):
+        """
+        Register event handlers in right sidebar
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+        
+        error = gr.State()
+        
+        # On changing model path (hit enter)
+        self.gr_rightbar.model_path_text.submit(            # First disable components
+            fn=lambda : [gr.update(interactive=False)]*8,
+            inputs=[],
+            outputs=[
+                self.gr_main.model_dropdown,
+                self.gr_rightbar.model_path_text,
+                self.gr_rightbar.model_path_save,
+                self.gr_rightbar.model_path_reset,
+                self.gr_rightbar.model_install_names,
+                self.gr_rightbar.model_install_tags,
+                self.gr_rightbar.model_install_btn,
+                self.gr_rightbar.model_remove_btn
+            ]
+        ).then(                                             # Then handle model path change
+            fn=self.settings_model_path_change,
+            inputs=[self.gr_rightbar.model_path_text],
+            outputs=[
+                error,
+                self.gr_main.model_dropdown,
+                self.gr_rightbar.model_path_text,
+                self.gr_rightbar.model_path_save,
+                self.gr_rightbar.model_path_reset,
+                self.gr_rightbar.model_install_names,
+                self.gr_rightbar.model_install_tags,
+                self.gr_rightbar.model_install_btn,
+                self.gr_rightbar.model_remove_btn
+            ]
+        ).then(                                             # Then raise error if exists
+            fn=self.raise_error,
+            inputs=[error],
+            outputs=[]
+        )
+        
+        # On changing model path (click button)
+        self.gr_rightbar.model_path_save.click(            # First disable components
+            fn=lambda : [gr.update(interactive=False)]*8,
+            inputs=[],
+            outputs=[
+                self.gr_main.model_dropdown,
+                self.gr_rightbar.model_path_text,
+                self.gr_rightbar.model_path_save,
+                self.gr_rightbar.model_path_reset,
+                self.gr_rightbar.model_install_names,
+                self.gr_rightbar.model_install_tags,
+                self.gr_rightbar.model_install_btn,
+                self.gr_rightbar.model_remove_btn
+            ]
+        ).then(                                             # Then handle model path change
+            fn=self.settings_model_path_change,
+            inputs=[self.gr_rightbar.model_path_text],
+            outputs=[
+                error,
+                self.gr_main.model_dropdown,
+                self.gr_rightbar.model_path_text,
+                self.gr_rightbar.model_path_save,
+                self.gr_rightbar.model_path_reset,
+                self.gr_rightbar.model_install_names,
+                self.gr_rightbar.model_install_tags,
+                self.gr_rightbar.model_install_btn,
+                self.gr_rightbar.model_remove_btn
+            ]
+        ).then(                                             # Then raise error if exists
+            fn=self.raise_error,
+            inputs=[error],
+            outputs=[]
+        )
+        
+        # On resetting model path
+        self.gr_rightbar.model_path_reset.click(            # First update textbox to default
+            fn=lambda : self.args.ollama_models,
+            inputs=[],
+            outputs=[self.gr_rightbar.model_path_text]
+        ).then(                                             # Then disable components
+            fn=lambda : [gr.update(interactive=False)]*8,
+            inputs=[],
+            outputs=[
+                self.gr_main.model_dropdown,
+                self.gr_rightbar.model_path_text,
+                self.gr_rightbar.model_path_save,
+                self.gr_rightbar.model_path_reset,
+                self.gr_rightbar.model_install_names,
+                self.gr_rightbar.model_install_tags,
+                self.gr_rightbar.model_install_btn,
+                self.gr_rightbar.model_remove_btn
+            ]
+        ).then(                                             # Then handle model path change
+            fn=self.settings_model_path_change,
+            inputs=[self.gr_rightbar.model_path_text],
+            outputs=[
+                error,
+                self.gr_main.model_dropdown,
+                self.gr_rightbar.model_path_text,
+                self.gr_rightbar.model_path_save,
+                self.gr_rightbar.model_path_reset,
+                self.gr_rightbar.model_install_names,
+                self.gr_rightbar.model_install_tags,
+                self.gr_rightbar.model_install_btn,
+                self.gr_rightbar.model_remove_btn
+            ]
+        ).then(                                             # Then raise error if exists
+            fn=self.raise_error,
+            inputs=[error],
             outputs=[]
         )
 

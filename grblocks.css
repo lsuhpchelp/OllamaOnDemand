@@ -210,3 +210,14 @@ footer {
         border: 1px solid #444;
     }
 }
+
+
+/* =================================================================
+    Right sidebar: User Setings
+   ================================================================= */
+
+.padded-button {
+    box-shadow: none !important;
+    background: none !important;
+    background-color: transparent !important;
+}
