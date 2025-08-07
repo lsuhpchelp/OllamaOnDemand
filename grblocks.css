@@ -16,6 +16,11 @@ footer {
 .hidden {
     display: none !important;
 }
+
+/* Sidebar toggle button */
+.toggle-button {
+    top: 50%;
+}
    
    
 /* =================================================================

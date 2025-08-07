@@ -121,7 +121,7 @@ class OllamaOnDemandUI:
             try:
                 if requests.get(self.args.ollama_host).ok:
                     print("Ollama server is running")
-                    return
+                    return ""
             except:
                 pass
             print("Waiting for Ollama server to start...")
@@ -693,7 +693,6 @@ class OllamaOnDemandUI:
         """
         
         model_path_old = self.settings["ollama_models"]
-        enable_model_installation = False
         
         # If path is writable, change model path and enable model installation
         if (os.access(model_path, os.W_OK)):
@@ -726,8 +725,8 @@ class OllamaOnDemandUI:
                 # Save user settings
                 self.save_settings()
                 
-                # Enable model installation
-                enable_model_installation = True
+                # Set writability
+                self.gr_rightbar.is_model_path_writable = True
             
         # If not writable
         else:
@@ -762,6 +761,9 @@ class OllamaOnDemandUI:
                     
                     # Save user settings
                     self.save_settings()
+                    
+                    # Set writability
+                    self.gr_rightbar.is_model_path_writable = False
                 
             # If not, reset model path and raise error
             else:
@@ -770,17 +772,17 @@ class OllamaOnDemandUI:
                 error = "Directory does not exist, you do not have access, or does not contain Ollama model!"
                 
         # Return
-        return [error,
+        return [error,                                                                      # Raise error
                 gr.update(choices=self.models, value=self.models[0], interactive=True),     # Model selector
                 gr.update(value=self.settings["ollama_models"], interactive=True),          # Model path textbox
                 gr.update(interactive=True),                                                # Model path save button
                 gr.update(interactive=True),                                                # Model path reset button
                 gr.update(choices=self.generate_settings_model_name_choices(), 
                           value=self.generate_settings_model_name_choices()[0][1], 
-                          interactive=enable_model_installation),                           # Model install name list
-                gr.update(interactive=enable_model_installation),                           # Model install tag list
-                gr.update(interactive=enable_model_installation),                           # Model install button
-                gr.update(interactive=enable_model_installation)]                           # Model remove button
+                          interactive=self.gr_rightbar.is_model_path_writable),             # Model install name list
+                gr.update(interactive=self.gr_rightbar.is_model_path_writable),             # Model install tag list
+                gr.update(interactive=self.gr_rightbar.is_model_path_writable),             # Model install button
+                gr.update(interactive=self.gr_rightbar.is_model_path_writable)]             # Model remove button
                 
     def settings_update_model_tags(self, name):
         """
@@ -817,32 +819,48 @@ class OllamaOnDemandUI:
         return [gr.update(visible=not is_installed),
                 gr.update(visible=is_installed)]
                
-    def settings_model_install(self, name, tag):
+    def settings_model_install_remove(self, name, tag, action):
         """
-        In User Settings -> Models, when installing selected remote model
+        In User Settings -> Models, install or remove a model
         
         Input:
             name:               Model name
             tag:                Model tag
+            action:             "install" or "remove"
         Output: 
             error:              Error message
-            gr.update:          Update to model selector 
-            gr.update:          Update to model path
-            gr.update * 2:      Updates to model path buttons
-            gr.update * 4:      Updates to model installation components
+            status:             Status stream
         """
         
         error = ""
         
         try:
             
-            # Pull selected model
-            current_report = ""
-            for progress in self.client.pull(name+":"+tag, stream=True):
-                report = progress.get("status")
-                if (report != current_report):
-                    gr.Info(report)
-                    current_report = report
+            if (action == "install"):
+            
+                # Pull selected model
+                for progress in self.client.pull(name+":"+tag, stream=True):
+                    
+                    # Get status
+                    status = progress.get("status")
+                    
+                    # Get percentage progress for big blobs ("digest" exists)
+                    if progress.get("digest"):
+                        
+                        completed=progress.get("completed") if progress.get("completed") else 0
+                        status += " ( **{:.0%}** )".format(completed / progress.get("total"))
+                    
+                    # Yield progress
+                    yield [error, status]
+                    
+            elif (action == "remove"):
+            
+                # Remove selected model
+                self.client.delete(name+":"+tag)
+                
+            else:
+            
+                error = "Invalid action!"
             
             # Update model list
             self.models = self.list_installed_models()
@@ -856,8 +874,23 @@ class OllamaOnDemandUI:
             error = e
                 
         # Return
-        return [error,
-                gr.update(choices=self.models, \
+        yield [error, ""]
+               
+    def settings_model_install_after(self):
+        """
+        In User Settings -> Models, update components after installing / removing model
+        
+        Input:
+            None
+        Output: 
+            gr.update:          Update to model selector 
+            gr.update:          Update to model path
+            gr.update * 2:      Updates to model path buttons
+            gr.update * 4:      Updates to model installation components
+        """
+                
+        # Return
+        return [gr.update(choices=self.models, \
                           value=self.settings["ollama_models"], \
                           interactive=True),                                                # Model selector
                 gr.update(interactive=True),                                                # Model path textbox
@@ -1115,7 +1148,8 @@ class OllamaOnDemandUI:
         with gr.Sidebar(width=350):
 
             # New Chat button
-            self.gr_leftbar.new_btn = gr.Button("New Chat", icon=os.path.dirname(os.path.abspath(__file__))+"/images/new_chat.png")
+            self.gr_leftbar.new_btn = gr.Button("💬️ New Chat")
+            #self.gr_leftbar.new_btn = gr.Button("New Chat", icon=os.path.dirname(os.path.abspath(__file__))+"/images/new_chat.png")
             
             # Chat selector
             self.gr_leftbar.chat_selector = gr.HTML(
@@ -1260,33 +1294,36 @@ class OllamaOnDemandUI:
                 gr.Markdown("### Install Models")
                 
                 # Initial check whether the path is writable
-                is_writable = os.access(self.settings["ollama_models"], os.W_OK)
+                self.gr_rightbar.is_model_path_writable = os.access(self.settings["ollama_models"], os.W_OK)
 
                 # List remote models to install
                 self.gr_rightbar.model_install_names = gr.Dropdown(
                     choices=self.generate_settings_model_name_choices(),
                     label="Model Name",
-                    interactive=is_writable
+                    interactive=self.gr_rightbar.is_model_path_writable
                 )
                 self.gr_rightbar.model_install_tags = gr.Dropdown(
                     choices=self.generate_settings_model_tag_choices(self.gr_rightbar.model_install_names.value),
                     label="Model Tag",
-                    interactive=is_writable
+                    interactive=self.gr_rightbar.is_model_path_writable
                 )
                 
-                # Pull button
+                # Install / remove button
                 with gr.Row():
                     
                     # Initial check which button to display
                     is_installed = self.gr_rightbar.model_install_names.value + ":" + self.gr_rightbar.model_install_tags.value in self.models
                     
                     # Generate buttons
-                    self.gr_rightbar.model_install_btn = gr.Button("⬇️ Install Selected Model", 
-                                                                    interactive=is_writable,
+                    self.gr_rightbar.model_install_btn = gr.Button("📥 Install Selected Model", 
+                                                                    interactive=self.gr_rightbar.is_model_path_writable,
                                                                     visible=not is_installed)
                     self.gr_rightbar.model_remove_btn = gr.Button("❌ Remove Selected Model", 
-                                                                    interactive=is_writable,
+                                                                    interactive=self.gr_rightbar.is_model_path_writable,
                                                                     visible=is_installed)
+                
+                # Status stream
+                self.gr_rightbar.model_install_status = gr.Markdown("")
     
     def build_ui(self):
         """
@@ -1364,7 +1401,7 @@ class OllamaOnDemandUI:
     
     # Workflows
     
-    def after_streaming_workflow(self, event_handler):
+    def workflow_after_streaming(self, event_handler):
         """
         After streaming finished workflow
         
@@ -1391,7 +1428,7 @@ class OllamaOnDemandUI:
             )
         )
     
-    def basic_streaming_workflow(self, event_handler):
+    def workflow_basic_streaming(self, event_handler):
         """
         Basic streaming workflow
         
@@ -1401,7 +1438,7 @@ class OllamaOnDemandUI:
             None
         """
         return (
-            self.after_streaming_workflow(
+            self.workflow_after_streaming(
                 event_handler.then(
                     fn=lambda: self.enable_components(False),
                                                         # Disable certain components
@@ -1415,6 +1452,107 @@ class OllamaOnDemandUI:
                 )
             )
         )
+        
+    def workflow_change_model_path(self, event_handler):
+        """
+        Workflow to handle model path change
+        
+        Input:
+            event_handler:  Event handler reference
+        Output: 
+            None
+        """
+        
+        error=gr.State("")
+        
+        event_handler(                                      # First disable components
+            fn=lambda : [gr.update(interactive=False)]*8,
+            inputs=[],
+            outputs=[
+                self.gr_main.model_dropdown,
+                self.gr_rightbar.model_path_text,
+                self.gr_rightbar.model_path_save,
+                self.gr_rightbar.model_path_reset,
+                self.gr_rightbar.model_install_names,
+                self.gr_rightbar.model_install_tags,
+                self.gr_rightbar.model_install_btn,
+                self.gr_rightbar.model_remove_btn
+            ]
+        ).then(                                             # Then handle model path change
+            fn=self.settings_model_path_change,
+            inputs=[self.gr_rightbar.model_path_text],
+            outputs=[
+                error,
+                self.gr_main.model_dropdown,
+                self.gr_rightbar.model_path_text,
+                self.gr_rightbar.model_path_save,
+                self.gr_rightbar.model_path_reset,
+                self.gr_rightbar.model_install_names,
+                self.gr_rightbar.model_install_tags,
+                self.gr_rightbar.model_install_btn,
+                self.gr_rightbar.model_remove_btn
+            ]
+        ).then(                                             # Then raise error if exists
+            fn=self.raise_error,
+            inputs=[error],
+            outputs=[]
+        )
+        
+    def workflow_install_remove_model(self, event_handler, action):
+        """
+        Workflow to handle install & a remove model
+        
+        Input:
+            event_handler:  Event handler reference
+            action:         "install" or "remove"
+        Output: 
+            None
+        """
+        
+        error = gr.State("")
+        
+        event_handler(                                      # First disable components
+            fn=lambda : [gr.update(interactive=False)]*8,
+            inputs=[],
+            outputs=[
+                self.gr_main.model_dropdown,
+                self.gr_rightbar.model_path_text,
+                self.gr_rightbar.model_path_save,
+                self.gr_rightbar.model_path_reset,
+                self.gr_rightbar.model_install_names,
+                self.gr_rightbar.model_install_tags,
+                self.gr_rightbar.model_install_btn,
+                self.gr_rightbar.model_remove_btn
+            ]
+        ).then(                                             # Then install / remove model
+            fn=self.settings_model_install_remove,
+            inputs=[
+                self.gr_rightbar.model_install_names, 
+                self.gr_rightbar.model_install_tags,
+                gr.State(action)
+            ],
+            outputs=[
+                error,
+                self.gr_rightbar.model_install_status
+            ]
+        ).then(                                             # Then update disabled components
+            fn=self.settings_model_install_after,
+            inputs=[],
+            outputs=[
+                self.gr_main.model_dropdown,
+                self.gr_rightbar.model_path_text,
+                self.gr_rightbar.model_path_save,
+                self.gr_rightbar.model_path_reset,
+                self.gr_rightbar.model_install_names,
+                self.gr_rightbar.model_install_tags,
+                self.gr_rightbar.model_install_btn,
+                self.gr_rightbar.model_remove_btn
+            ]
+        ).then(                                             # Then raise error if exists
+            fn=self.raise_error,
+            inputs=[error],
+            outputs=[]
+        )
     
     def register_main(self):
         """
@@ -1426,10 +1564,6 @@ class OllamaOnDemandUI:
             None
         """
             
-        #----------------------------------------------------------
-        # Event handlers
-        #----------------------------------------------------------
-            
         # Model selector
         self.gr_main.model_dropdown.change(
             fn=self.select_model,
@@ -1438,7 +1572,7 @@ class OllamaOnDemandUI:
         )
         
         # Chatbot: Retry
-        self.basic_streaming_workflow(
+        self.workflow_basic_streaming(
             self.gr_main.chatbot.retry(
                 fn=self.retry,
                 inputs=[],
@@ -1447,7 +1581,7 @@ class OllamaOnDemandUI:
         )
         
         # Chatbot: Edit
-        self.basic_streaming_workflow(
+        self.workflow_basic_streaming(
             self.gr_main.chatbot.edit(
                 fn=self.edit,
                 inputs=[],
@@ -1456,7 +1590,7 @@ class OllamaOnDemandUI:
         )
 
         # User input: Submit new message
-        self.basic_streaming_workflow(
+        self.workflow_basic_streaming(
             self.gr_main.user_input.submit(
                 fn=self.new_message,
                 inputs=[self.gr_main.user_input],
@@ -1465,7 +1599,7 @@ class OllamaOnDemandUI:
         )
         
         # User input: Stop
-        self.after_streaming_workflow( 
+        self.workflow_after_streaming( 
             self.gr_main.user_input.stop(
                 fn=self.stop_stream_chat,
                 inputs=[],
@@ -1545,120 +1679,27 @@ class OllamaOnDemandUI:
             None
         """
         
-        error = gr.State()
+        # Change model path (hit enter)
+        self.workflow_change_model_path(self.gr_rightbar.model_path_text.submit)
         
-        # On changing model path (hit enter)
-        self.gr_rightbar.model_path_text.submit(            # First disable components
-            fn=lambda : [gr.update(interactive=False)]*8,
-            inputs=[],
-            outputs=[
-                self.gr_main.model_dropdown,
-                self.gr_rightbar.model_path_text,
-                self.gr_rightbar.model_path_save,
-                self.gr_rightbar.model_path_reset,
-                self.gr_rightbar.model_install_names,
-                self.gr_rightbar.model_install_tags,
-                self.gr_rightbar.model_install_btn,
-                self.gr_rightbar.model_remove_btn
-            ]
-        ).then(                                             # Then handle model path change
-            fn=self.settings_model_path_change,
-            inputs=[self.gr_rightbar.model_path_text],
-            outputs=[
-                error,
-                self.gr_main.model_dropdown,
-                self.gr_rightbar.model_path_text,
-                self.gr_rightbar.model_path_save,
-                self.gr_rightbar.model_path_reset,
-                self.gr_rightbar.model_install_names,
-                self.gr_rightbar.model_install_tags,
-                self.gr_rightbar.model_install_btn,
-                self.gr_rightbar.model_remove_btn
-            ]
-        ).then(                                             # Then raise error if exists
-            fn=self.raise_error,
-            inputs=[error],
-            outputs=[]
+        # Change model path (click "save" button)
+        self.workflow_change_model_path(self.gr_rightbar.model_path_save.click)
+        
+        # Reset model path
+        self.workflow_change_model_path(
+            self.gr_rightbar.model_path_reset.click(            # First update textbox to default
+                fn=lambda : self.args.ollama_models,
+                inputs=[],
+                outputs=[self.gr_rightbar.model_path_text]
+            ).then                                              # Then execute the workflow
         )
         
-        # On changing model path (click button)
-        self.gr_rightbar.model_path_save.click(            # First disable components
-            fn=lambda : [gr.update(interactive=False)]*8,
-            inputs=[],
-            outputs=[
-                self.gr_main.model_dropdown,
-                self.gr_rightbar.model_path_text,
-                self.gr_rightbar.model_path_save,
-                self.gr_rightbar.model_path_reset,
-                self.gr_rightbar.model_install_names,
-                self.gr_rightbar.model_install_tags,
-                self.gr_rightbar.model_install_btn,
-                self.gr_rightbar.model_remove_btn
-            ]
-        ).then(                                             # Then handle model path change
-            fn=self.settings_model_path_change,
-            inputs=[self.gr_rightbar.model_path_text],
-            outputs=[
-                error,
-                self.gr_main.model_dropdown,
-                self.gr_rightbar.model_path_text,
-                self.gr_rightbar.model_path_save,
-                self.gr_rightbar.model_path_reset,
-                self.gr_rightbar.model_install_names,
-                self.gr_rightbar.model_install_tags,
-                self.gr_rightbar.model_install_btn,
-                self.gr_rightbar.model_remove_btn
-            ]
-        ).then(                                             # Then raise error if exists
-            fn=self.raise_error,
-            inputs=[error],
-            outputs=[]
-        )
-        
-        # On resetting model path
-        self.gr_rightbar.model_path_reset.click(            # First update textbox to default
-            fn=lambda : self.args.ollama_models,
-            inputs=[],
-            outputs=[self.gr_rightbar.model_path_text]
-        ).then(                                             # Then disable components
-            fn=lambda : [gr.update(interactive=False)]*8,
-            inputs=[],
-            outputs=[
-                self.gr_main.model_dropdown,
-                self.gr_rightbar.model_path_text,
-                self.gr_rightbar.model_path_save,
-                self.gr_rightbar.model_path_reset,
-                self.gr_rightbar.model_install_names,
-                self.gr_rightbar.model_install_tags,
-                self.gr_rightbar.model_install_btn,
-                self.gr_rightbar.model_remove_btn
-            ]
-        ).then(                                             # Then handle model path change
-            fn=self.settings_model_path_change,
-            inputs=[self.gr_rightbar.model_path_text],
-            outputs=[
-                error,
-                self.gr_main.model_dropdown,
-                self.gr_rightbar.model_path_text,
-                self.gr_rightbar.model_path_save,
-                self.gr_rightbar.model_path_reset,
-                self.gr_rightbar.model_install_names,
-                self.gr_rightbar.model_install_tags,
-                self.gr_rightbar.model_install_btn,
-                self.gr_rightbar.model_remove_btn
-            ]
-        ).then(                                             # Then raise error if exists
-            fn=self.raise_error,
-            inputs=[error],
-            outputs=[]
-        )
-        
-        # On changing installing model name
+        # Change install model name
         self.gr_rightbar.model_install_names.change(
             fn=self.settings_update_model_tags,
             inputs=[self.gr_rightbar.model_install_names],
             outputs=[self.gr_rightbar.model_install_tags]
-        ).then(                                             # Force update
+        ).then(                                                 # Force update when system trigger change
             fn=self.settings_update_model_buttons,
             inputs=[self.gr_rightbar.model_install_names,
                     self.gr_rightbar.model_install_tags],
@@ -1666,7 +1707,7 @@ class OllamaOnDemandUI:
                      self.gr_rightbar.model_remove_btn]
         )
         
-        # On changing installing model tag (only when user update)
+        # Change install model tag (when user update)
         self.gr_rightbar.model_install_tags.input(
             fn=self.settings_update_model_buttons,
             inputs=[self.gr_rightbar.model_install_names,
@@ -1675,41 +1716,16 @@ class OllamaOnDemandUI:
                      self.gr_rightbar.model_remove_btn]
         )
         
-        # On installing selected models
-        self.gr_rightbar.model_install_btn.click(           # First disable components
-            fn=lambda : [gr.update(interactive=False)]*8,
-            inputs=[],
-            outputs=[
-                self.gr_main.model_dropdown,
-                self.gr_rightbar.model_path_text,
-                self.gr_rightbar.model_path_save,
-                self.gr_rightbar.model_path_reset,
-                self.gr_rightbar.model_install_names,
-                self.gr_rightbar.model_install_tags,
-                self.gr_rightbar.model_install_btn,
-                self.gr_rightbar.model_remove_btn
-            ]
-        ).then(                                             # Then install model
-            fn=self.settings_model_install,
-            inputs=[
-                self.gr_rightbar.model_install_names, 
-                self.gr_rightbar.model_install_tags
-            ],
-            outputs=[
-                error,
-                self.gr_main.model_dropdown,
-                self.gr_rightbar.model_path_text,
-                self.gr_rightbar.model_path_save,
-                self.gr_rightbar.model_path_reset,
-                self.gr_rightbar.model_install_names,
-                self.gr_rightbar.model_install_tags,
-                self.gr_rightbar.model_install_btn,
-                self.gr_rightbar.model_remove_btn
-            ]
-        ).then(                                             # Then raise error if exists
-            fn=self.raise_error,
-            inputs=[error],
-            outputs=[]
+        # Install selected models
+        self.workflow_install_remove_model(
+            event_handler = self.gr_rightbar.model_install_btn.click,
+            action = "install"
+        )
+        
+        # Remove selected models
+        self.workflow_install_remove_model(
+            event_handler = self.gr_rightbar.model_remove_btn.click,
+            action = "remove"
         )
 
 
