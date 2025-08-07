@@ -580,18 +580,18 @@ class OllamaOnDemandUI:
             self.update_current_chat(self.chat_index)
             return gr.update(value=self.generate_chat_selector()), self.chat_history
     
-    def select_model(self, evt: gr.SelectData):
+    def select_model(self, model_selected):
         """
         Change selected model.
         
         Input:
-            evt:            Event instance (as gr.SelectData) 
+            model_selected:         Selected model
         Output: 
             None
         """
         
         # Save user settings
-        self.settings["model_selected"] = evt.value
+        self.settings["model_selected"] = model_selected
         self.save_settings()
     
     def enable_components(self, interactive=True):
@@ -816,6 +816,59 @@ class OllamaOnDemandUI:
         # Return
         return [gr.update(visible=not is_installed),
                 gr.update(visible=is_installed)]
+               
+    def settings_model_install(self, name, tag):
+        """
+        In User Settings -> Models, when installing selected remote model
+        
+        Input:
+            name:               Model name
+            tag:                Model tag
+        Output: 
+            error:              Error message
+            gr.update:          Update to model selector 
+            gr.update:          Update to model path
+            gr.update * 2:      Updates to model path buttons
+            gr.update * 4:      Updates to model installation components
+        """
+        
+        error = ""
+        
+        try:
+            
+            # Pull selected model
+            current_report = ""
+            for progress in self.client.pull(name+":"+tag, stream=True):
+                report = progress.get("status")
+                if (report != current_report):
+                    gr.Info(report)
+                    current_report = report
+            
+            # Update model list
+            self.models = self.list_installed_models()
+                
+            # Reset user settings
+            self.settings["ollama_models"] = self.models[0]
+            
+        except Exception as e:
+            
+            # Error message
+            error = e
+                
+        # Return
+        return [error,
+                gr.update(choices=self.models, \
+                          value=self.settings["ollama_models"], \
+                          interactive=True),                                                # Model selector
+                gr.update(interactive=True),                                                # Model path textbox
+                gr.update(interactive=True),                                                # Model path save button
+                gr.update(interactive=True),                                                # Model path reset button
+                gr.update(choices=self.generate_settings_model_name_choices(), 
+                          value=self.generate_settings_model_name_choices()[0][1], 
+                          interactive=True),                                                # Model install name list
+                gr.update(interactive=True),                                                # Model install tag list
+                gr.update(interactive=True),                                                # Model install button
+                gr.update(interactive=True)]                                                # Model remove button
                     
     def raise_error(self, error):
         """
@@ -1378,9 +1431,9 @@ class OllamaOnDemandUI:
         #----------------------------------------------------------
             
         # Model selector
-        self.gr_main.model_dropdown.select(
+        self.gr_main.model_dropdown.change(
             fn=self.select_model,
-            inputs=[],
+            inputs=[self.gr_main.model_dropdown],
             outputs=[],
         )
         
@@ -1620,6 +1673,43 @@ class OllamaOnDemandUI:
                     self.gr_rightbar.model_install_tags],
             outputs=[self.gr_rightbar.model_install_btn,
                      self.gr_rightbar.model_remove_btn]
+        )
+        
+        # On installing selected models
+        self.gr_rightbar.model_install_btn.click(           # First disable components
+            fn=lambda : [gr.update(interactive=False)]*8,
+            inputs=[],
+            outputs=[
+                self.gr_main.model_dropdown,
+                self.gr_rightbar.model_path_text,
+                self.gr_rightbar.model_path_save,
+                self.gr_rightbar.model_path_reset,
+                self.gr_rightbar.model_install_names,
+                self.gr_rightbar.model_install_tags,
+                self.gr_rightbar.model_install_btn,
+                self.gr_rightbar.model_remove_btn
+            ]
+        ).then(                                             # Then install model
+            fn=self.settings_model_install,
+            inputs=[
+                self.gr_rightbar.model_install_names, 
+                self.gr_rightbar.model_install_tags
+            ],
+            outputs=[
+                error,
+                self.gr_main.model_dropdown,
+                self.gr_rightbar.model_path_text,
+                self.gr_rightbar.model_path_save,
+                self.gr_rightbar.model_path_reset,
+                self.gr_rightbar.model_install_names,
+                self.gr_rightbar.model_install_tags,
+                self.gr_rightbar.model_install_btn,
+                self.gr_rightbar.model_remove_btn
+            ]
+        ).then(                                             # Then raise error if exists
+            fn=self.raise_error,
+            inputs=[error],
+            outputs=[]
         )
 
 
