@@ -72,7 +72,8 @@ class OllamaOnDemandUI:
         # Get models
         self.models = self.list_installed_models()          # Installed models (List)
         self.remote_models = self.dict_remote_models()      # Remote models (Dict)
-        self.model_selected = self.settings["model_selected"] if self.settings.get("model_selected") in self.models else self.models[0]
+        if (not self.settings.get("model_selected") in self.models):
+            self.settings["model_selected"] = self.models[0]
         
         # Gradio components deposit
         self.gr_main = GradioComponents()           # Main view
@@ -162,7 +163,7 @@ class OllamaOnDemandUI:
         """
         
         models = sorted([model.model for model in self.client.list().models])
-        return models if models else ["(No model is found. Pull a model or change model directory to continue...)"]
+        return models if models else ["(No model is found: Pull a model or change model directory to continue...)"]
     
     def dict_installed_models(self):
         """
@@ -339,7 +340,7 @@ class OllamaOnDemandUI:
 
             # Generate next chat results
             response = self.client.chat(
-                model = self.model_selected,
+                model = self.settings["model_selected"],
                 messages = self.chat_history,
                 stream = True,
                 options = self.settings.get("options")
@@ -467,7 +468,7 @@ class OllamaOnDemandUI:
             
             # Generate a chat title, but do not alter chat_history
             response = self.client.chat(
-                model = self.model_selected,
+                model = self.settings["model_selected"],
                 messages = self.chat_history + \
                     [ { "role": "user", 
                         "content": "Summarize this entire conversation with less than six words. Be objective and formal (Don't use first person expression). No punctuation."} ],
@@ -588,9 +589,6 @@ class OllamaOnDemandUI:
         Output: 
             None
         """
-        
-        # Change selected model
-        self.model_selected = evt.value
         
         # Save user settings
         self.settings["model_selected"] = evt.value
@@ -772,11 +770,52 @@ class OllamaOnDemandUI:
                 error = "Directory does not exist, you do not have access, or does not contain Ollama model!"
                 
         # Return
-        return  [error,
-                 gr.update(choices=self.models, value=self.models[0], interactive=True),
-                 gr.update(value=self.settings["ollama_models"], interactive=True)] + \
-                [gr.update(interactive=True)] * 2 + \
-                [gr.update(interactive=enable_model_installation)] * 4
+        return [error,
+                gr.update(choices=self.models, value=self.models[0], interactive=True),     # Model selector
+                gr.update(value=self.settings["ollama_models"], interactive=True),          # Model path textbox
+                gr.update(interactive=True),                                                # Model path save button
+                gr.update(interactive=True),                                                # Model path reset button
+                gr.update(choices=self.generate_settings_model_name_choices(), 
+                          value=self.generate_settings_model_name_choices()[0][1], 
+                          interactive=enable_model_installation),                           # Model install name list
+                gr.update(interactive=enable_model_installation),                           # Model install tag list
+                gr.update(interactive=enable_model_installation),                           # Model install button
+                gr.update(interactive=enable_model_installation)]                           # Model remove button
+                
+    def settings_update_model_tags(self, name):
+        """
+        Update model tags dropdown choices based on model name
+        
+        Input:
+            name:               Model name
+        Output: 
+            gr.update:          Update to model tags
+        """
+        
+        # Get choices
+        choices = self.generate_settings_model_tag_choices(name)
+        
+        # Return
+        return gr.update(choices=choices, value=choices[0][1])
+    
+    def settings_update_model_buttons(self, name, tag):
+        """
+        Update model installation buttons' visibility upon changing selections
+        
+        Input:
+            name:               Model name
+            tag:                Model tag
+        Output: 
+            gr.update:          Update to model install button
+            gr.update:          Update to model remove button
+        """
+        
+        # Check whether selected model is installed
+        is_installed = name+":"+tag in self.models
+        
+        # Return
+        return [gr.update(visible=not is_installed),
+                gr.update(visible=is_installed)]
                     
     def raise_error(self, error):
         """
@@ -904,6 +943,56 @@ class OllamaOnDemandUI:
             inputs = [self.gr_rightbar.settings_components[name]],
             outputs = []
         )
+        
+    def generate_settings_model_name_choices(self):
+        """
+        Generate dropdown choices for remote model names
+        
+        Input:
+            None
+        Output: 
+            [(key, val)]:   A list of (key, value) pair, and add "✅" to keys if installed
+        """
+        
+        # List model names (values)
+        values = sorted(list(self.remote_models.keys()))
+        
+        # Generate dropdown choices
+        res = []
+        dict_installed_models = self.dict_installed_models()
+        for val in values:
+            if val in dict_installed_models:
+                res.append((val + " ✅", val))
+            else:
+                res.append((val, val))
+        
+        # Return
+        return(res)
+        
+    def generate_settings_model_tag_choices(self, name):
+        """
+        Generate dropdown choices for remote model tags
+        
+        Input:
+            name:           Model name
+        Output: 
+            [(key, val)]:   A list of (key, value) pair, and add "✅" to keys if installed
+        """
+        
+        # List model names (values)
+        values = self.remote_models[name]
+        
+        # Generate dropdown choices
+        res = []
+        dict_installed_tags = self.dict_installed_models().get(name) if self.dict_installed_models().get(name) else []
+        for val in values:
+            if val in dict_installed_tags:
+                res.append((val + " ✅", val))
+            else:
+                res.append((val, val))
+        
+        # Return
+        return(res)
     
     def build_main(self):
         """
@@ -926,7 +1015,7 @@ class OllamaOnDemandUI:
             # Model selector
             self.gr_main.model_dropdown = gr.Dropdown(
                 choices=self.models,
-                value=self.model_selected,
+                value=self.settings["model_selected"],
                 interactive=True,
                 show_label=False
             )
@@ -1116,23 +1205,35 @@ class OllamaOnDemandUI:
                 gr.HTML("")
                 
                 gr.Markdown("### Install Models")
+                
+                # Initial check whether the path is writable
+                is_writable = os.access(self.settings["ollama_models"], os.W_OK)
 
                 # List remote models to install
                 self.gr_rightbar.model_install_names = gr.Dropdown(
-                    choices=sorted(list(self.remote_models.keys())),
+                    choices=self.generate_settings_model_name_choices(),
                     label="Model Name",
-                    interactive=True
+                    interactive=is_writable
                 )
                 self.gr_rightbar.model_install_tags = gr.Dropdown(
-                    choices=self.remote_models[sorted(list(self.remote_models.keys()))[0]],
+                    choices=self.generate_settings_model_tag_choices(self.gr_rightbar.model_install_names.value),
                     label="Model Tag",
-                    interactive=True
+                    interactive=is_writable
                 )
                 
                 # Pull button
                 with gr.Row():
-                    self.gr_rightbar.model_install_btn = gr.Button("⬇️ Install Selected Model")
-                    self.gr_rightbar.model_remove_btn = gr.Button("❌ Remove Selected Model")
+                    
+                    # Initial check which button to display
+                    is_installed = self.gr_rightbar.model_install_names.value + ":" + self.gr_rightbar.model_install_tags.value in self.models
+                    
+                    # Generate buttons
+                    self.gr_rightbar.model_install_btn = gr.Button("⬇️ Install Selected Model", 
+                                                                    interactive=is_writable,
+                                                                    visible=not is_installed)
+                    self.gr_rightbar.model_remove_btn = gr.Button("❌ Remove Selected Model", 
+                                                                    interactive=is_writable,
+                                                                    visible=is_installed)
     
     def build_ui(self):
         """
@@ -1497,6 +1598,28 @@ class OllamaOnDemandUI:
             fn=self.raise_error,
             inputs=[error],
             outputs=[]
+        )
+        
+        # On changing installing model name
+        self.gr_rightbar.model_install_names.change(
+            fn=self.settings_update_model_tags,
+            inputs=[self.gr_rightbar.model_install_names],
+            outputs=[self.gr_rightbar.model_install_tags]
+        ).then(                                             # Force update
+            fn=self.settings_update_model_buttons,
+            inputs=[self.gr_rightbar.model_install_names,
+                    self.gr_rightbar.model_install_tags],
+            outputs=[self.gr_rightbar.model_install_btn,
+                     self.gr_rightbar.model_remove_btn]
+        )
+        
+        # On changing installing model tag (only when user update)
+        self.gr_rightbar.model_install_tags.input(
+            fn=self.settings_update_model_buttons,
+            inputs=[self.gr_rightbar.model_install_names,
+                    self.gr_rightbar.model_install_tags],
+            outputs=[self.gr_rightbar.model_install_btn,
+                     self.gr_rightbar.model_remove_btn]
         )
 
 

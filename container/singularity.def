@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: ollama/ollama:0.9.5
+From: ollama/ollama:0.11.3
 
 
 ################################################################################
@@ -35,4 +35,4 @@ wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge
     . /opt/miniforge3/bin/activate
 
 # Install Gradio
-pip install gradio==5.34.0 ollama==0.5.1
+pip install gradio==5.35 ollama==0.5.2
