@@ -891,7 +891,7 @@ class OllamaOnDemandUI:
                 
         # Return
         return [gr.update(choices=self.models, \
-                          value=self.settings["ollama_models"], \
+                          value=self.settings["model_selected"], \
                           interactive=True),                                                # Model selector
                 gr.update(interactive=True),                                                # Model path textbox
                 gr.update(interactive=True),                                                # Model path save button
