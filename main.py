@@ -866,7 +866,7 @@ class OllamaOnDemandUI:
             self.models = self.list_installed_models()
                 
             # Reset user settings
-            self.settings["ollama_models"] = self.models[0]
+            self.settings["model_selected"] = self.models[0]
             
         except Exception as e:
             
