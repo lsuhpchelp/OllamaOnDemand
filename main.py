@@ -337,13 +337,18 @@ class OllamaOnDemandUI:
         
         # Failsafe: Only stream while is_streaming is True
         if self.is_streaming:
+        
+            # Pre-process options
+            options = self.settings.get("options").copy() if self.settings.get("options") else {}
+            if (options and options.get("stop")):
+                options["stop"] = options["stop"].split(",")    # Set up stop sequence
 
             # Generate next chat results
             response = self.client.chat(
                 model = self.settings["model_selected"],
                 messages = self.chat_history,
                 stream = True,
-                options = self.settings.get("options")
+                options = options
             )
 
             # Stream results in chunks while not interrupted
@@ -1132,7 +1137,8 @@ class OllamaOnDemandUI:
                 stop_btn=False,
                 show_label=False,
                 file_types=["image"],
-                file_count="multiple"
+                file_count="multiple",
+                max_plain_text_length=10000
             )
     
     def build_left(self):
@@ -1192,6 +1198,14 @@ class OllamaOnDemandUI:
                         "label":                "(Maximum number of tokens)",
                         "minimum":              0,
                         "precision":            0      
+                    }
+                )
+                
+                self.generate_settings_component(\
+                    name = "stop", 
+                    component = gr.Textbox,
+                    component_init = {
+                        "label":                "(Stop sequence. Seperated by \",\")",
                     }
                 )
                 
