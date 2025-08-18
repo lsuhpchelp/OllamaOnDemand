@@ -40,6 +40,9 @@ class OllamaOnDemandUI:
             args: Command-line arguments.
         """
         
+        # Current path
+        self.current_path = os.path.dirname(os.path.abspath(__file__))
+        
         # Command-line arguments
         self.args = args
         
@@ -335,6 +338,10 @@ class OllamaOnDemandUI:
             user_input:         Update user input field to "" and button face
         """
         
+        # Think head & tail
+        think_head = "<details open><summary><i><b>(Thinking...)</b></summary>\n\n"
+        think_tail = "\n\n(Done thinking...)</i></details>\n\n"
+        
         # Failsafe: Only stream while is_streaming is True
         if self.is_streaming:
         
@@ -350,12 +357,32 @@ class OllamaOnDemandUI:
                 stream = True,
                 options = options
             )
+            
+            # Set thinking flag to False
+            is_thinking = False
 
             # Stream results in chunks while not interrupted
             for chunk in response:
+            
+                # Breake if interrupted
                 if not self.is_streaming:
                     break
-                self.chat_history[-1]["content"] += chunk.message.content
+                
+                # Add chunk and thinking tag if needed
+                if (not is_thinking and chunk.message.thinking):    # Dedicated thinking mode: begin
+                    self.chat_history[-1]["content"] += think_head + chunk.message.thinking
+                    is_thinking = True
+                elif (is_thinking and chunk.message.content):       # Dedicated thinking mode: end
+                    self.chat_history[-1]["content"] += think_tail + chunk.message.content
+                    is_thinking = False
+                elif (chunk.message.content == "<think>"):          # Built-in thinking (e.g., DeepSeek-R1): begin
+                    self.chat_history[-1]["content"] += think_head
+                elif (chunk.message.content == "</think>"):         # Built-in thinking (e.g., DeepSeek-R1): end
+                    self.chat_history[-1]["content"] += think_tail
+                else:                                               # None of above: normal chunk
+                    self.chat_history[-1]["content"] += chunk.message.content or chunk.message.thinking or ""
+                
+                # Yield results
                 yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
         
         # Once finished, set streaming to False
@@ -1155,7 +1182,7 @@ class OllamaOnDemandUI:
 
             # New Chat button
             self.gr_leftbar.new_btn = gr.Button("💬️ New Chat")
-            #self.gr_leftbar.new_btn = gr.Button("New Chat", icon=os.path.dirname(os.path.abspath(__file__))+"/images/new_chat.png")
+            #self.gr_leftbar.new_btn = gr.Button("New Chat", icon=self.current_path+"/images/new_chat.png")
             
             # Chat selector
             self.gr_leftbar.chat_selector = gr.HTML(
@@ -1350,9 +1377,9 @@ class OllamaOnDemandUI:
         """
         
         with gr.Blocks(
-            css_paths=os.path.dirname(os.path.abspath(__file__))+'/grblocks.css',
+            css_paths=self.current_path+'/grblocks.css',
             title="Ollama OnDemand",
-            head_paths=os.path.dirname(os.path.abspath(__file__))+'/head.html'
+            head_paths=self.current_path+'/head.html'
         ) as self.demo:
             
             #----------------------------------------------------------
@@ -1405,7 +1432,7 @@ class OllamaOnDemandUI:
             server_name=self.args.host,
             server_port=self.args.port,
             root_path=self.args.root_path,
-            allowed_paths=[os.path.dirname(os.path.abspath(__file__))]
+            allowed_paths=[self.current_path]
         )
     
     
