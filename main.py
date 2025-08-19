@@ -1128,7 +1128,16 @@ class OllamaOnDemandUI:
         ):
             
             # Title
-            gr.Markdown("# Ollama OnDemand")
+            logo = "gradio_api/file=" + self.current_path + "/images/logo.png"
+            gr.Markdown(
+                f"""
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="{logo}" alt="Logo" style="height:40px; width: 40px;">
+                    <h1 style="margin: 0;">Ollama OnDemand</h1>
+                </div>
+                """
+            )
+            #f"![Logo]({logo}) # Ollama OnDemand")
             
             # Model selector
             self.gr_main.model_dropdown = gr.Dropdown(
