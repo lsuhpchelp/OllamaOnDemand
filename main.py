@@ -82,11 +82,19 @@ class OllamaOnDemandUI:
         self.gr_main = GradioComponents()           # Main view
         self.gr_leftbar = GradioComponents()        # Left sidebar
         self.gr_rightbar = GradioComponents()       # Right sidebar
-        self.gr_rightbar.settings_components = {}    # User settings: Setting components
-        self.gr_rightbar.settings_defaults = {}      # User settings: Default checkbox
+        self.gr_rightbar.settings_components = {}   # User settings: Setting components
+        self.gr_rightbar.settings_defaults = {}     # User settings: Default checkbox
         
         # Setup Gradio temp files directory
         os.environ["GRADIO_TEMP_DIR"] = self.args.workdir + "/cache"
+        
+        # Compile regular expression for think tag replacement for display
+        self.think_tags = {
+            "head_tag":     "<think&#x200B;&#x200C;&#x2060;>\n\n",
+            "tail_tag":     "\n\n</think&#x200B;&#x200C;&#x2060;>\n\n",
+            "head_html":    "<details><summary><i><b>(Thinking...)</b></summary>\n\n",
+            "tail_html":    "\n\n(Done thinking...)</i></details><br>\n\n"
+        }
 
     
     #------------------------------------------------------------------
@@ -276,6 +284,30 @@ class OllamaOnDemandUI:
             
             # Get chat title
             self.chat_title = cs.get_chat_title(chat_index)
+                    
+    def chat_history_format(self):
+        """
+        Format chat_history's thinking tag into a more clean HTML
+        
+        Input:
+            None
+        Output: 
+            chat_history:   Formatted chat history
+        """
+        
+        # Make a copy of the chat history
+        chat_history = self.chat_history.copy()
+        
+        # Loop and replace
+        for chat in chat_history:
+            
+            if chat["role"] == "assistant":
+                chat["content"] = chat["content"].replace(self.think_tags["head_tag"], 
+                                                          self.think_tags["head_html"])
+                chat["content"] = chat["content"].replace(self.think_tags["tail_tag"], 
+                                                          self.think_tags["tail_html"])
+        
+        return(chat_history)
         
     def save_chat_history(self):
         """
@@ -338,10 +370,6 @@ class OllamaOnDemandUI:
             user_input:         Update user input field to "" and button face
         """
         
-        # Think head & tail
-        think_head = "<details open><summary><i><b>(Thinking...)</b></summary>\n\n"
-        think_tail = "\n\n(Done thinking...)</i></details>\n\n"
-        
         # Failsafe: Only stream while is_streaming is True
         if self.is_streaming:
         
@@ -358,8 +386,9 @@ class OllamaOnDemandUI:
                 options = options
             )
             
-            # Set thinking flag to False
-            is_thinking = False
+            # Reset thinking flag
+            is_thinking = False     # Or "S" (switchable thinking), "B" (Built-in thinking)
+            token_count = 0
 
             # Stream results in chunks while not interrupted
             for chunk in response:
@@ -369,18 +398,36 @@ class OllamaOnDemandUI:
                     break
                 
                 # Add chunk and thinking tag if needed
-                if (not is_thinking and chunk.message.thinking):    # Dedicated thinking mode: begin
-                    self.chat_history[-1]["content"] += think_head + chunk.message.thinking
-                    is_thinking = True
-                elif (is_thinking and chunk.message.content):       # Dedicated thinking mode: end
-                    self.chat_history[-1]["content"] += think_tail + chunk.message.content
+                if (not is_thinking and chunk.message.thinking):
+                    # Switchable thinking mode: begin
+                    #   - When is_thinking was False but thinking attribute is not empty
+                    #   - Set is_thinking to "S" (switchable thinking)
+                    self.chat_history[-1]["content"] += self.think_tags["head_tag"] + chunk.message.thinking
+                    is_thinking = "S"
+                elif (is_thinking == "S" and chunk.message.thinking == None):
+                    # Switchable thinking mode: end
+                    #   - When is_thinking was "S" (switchable), but thinking attribute is now None
+                    #   - Set is_thinking to False (not thinking)
+                    self.chat_history[-1]["content"] += self.think_tags["tail_tag"] + chunk.message.content
                     is_thinking = False
-                elif (chunk.message.content == "<think>"):          # Built-in thinking (e.g., DeepSeek-R1): begin
-                    self.chat_history[-1]["content"] += think_head
-                elif (chunk.message.content == "</think>"):         # Built-in thinking (e.g., DeepSeek-R1): end
-                    self.chat_history[-1]["content"] += think_tail
-                else:                                               # None of above: normal chunk
+                elif (token_count == 0 and chunk.message.content == "<think>"):
+                    # Built-in thinking (e.g., DeepSeek-R1): begin
+                    #   - When this token is the first token and is "<think>"
+                    #   - Set is_thinking to "B" (built-in thinking)
+                    self.chat_history[-1]["content"] += self.think_tags["head_tag"]
+                    is_thinking = "B"
+                elif (is_thinking == "B" and chunk.message.content == "</think>"):
+                    # Built-in thinking (e.g., DeepSeek-R1): end
+                    #   - When is_thinking was True (set for built-in thinking) but this token is "</think>"
+                    #   - Set is_thinking to False (not thinking)
+                    self.chat_history[-1]["content"] += self.think_tags["tail_tag"]
+                    is_thinking = False
+                else:
+                    # None of above: normal chunk
                     self.chat_history[-1]["content"] += chunk.message.content or chunk.message.thinking or ""
+                
+                # Token count ++
+                token_count += 1
                 
                 # Yield results
                 yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
@@ -389,7 +436,7 @@ class OllamaOnDemandUI:
         self.is_streaming = False
         
         # Final update components
-        yield self.chat_history, gr.update(value="", submit_btn=True, stop_btn=False)
+        yield self.chat_history_format(), gr.update(value="", submit_btn=True, stop_btn=False)
     
     def stop_stream_chat(self):
         """
@@ -406,7 +453,7 @@ class OllamaOnDemandUI:
         self.is_streaming = False
         
         # Update components
-        yield self.chat_history, gr.update(value="", submit_btn=True, stop_btn=False)
+        yield self.chat_history_format(), gr.update(value="", submit_btn=True, stop_btn=False)
     
     def new_message(self, user_input):
         """
@@ -530,7 +577,7 @@ class OllamaOnDemandUI:
         self.update_current_chat(index)
         
         # Return chat history to chatbot
-        return self.chat_history
+        return self.chat_history_format()
         
     def new_chat(self):
         """
@@ -604,13 +651,13 @@ class OllamaOnDemandUI:
         
             self.chat_index -= 1
             self.update_current_chat(self.chat_index)
-            return gr.update(value=self.generate_chat_selector()), self.chat_history
+            return gr.update(value=self.generate_chat_selector()), self.chat_history_format()
             
         # Otherwise, keep current chat index and reload
         else:
         
             self.update_current_chat(self.chat_index)
-            return gr.update(value=self.generate_chat_selector()), self.chat_history
+            return gr.update(value=self.generate_chat_selector()), self.chat_history_format()
     
     def select_model(self, model_selected):
         """
@@ -1157,7 +1204,7 @@ class OllamaOnDemandUI:
                 type="messages",
                 show_copy_button=True,
                 editable="user",
-                allow_tags=True,
+                allow_tags=False,
                 elem_id="gr-chatbot"
             )
             
@@ -1467,7 +1514,7 @@ class OllamaOnDemandUI:
                 outputs=[self.gr_leftbar.chat_selector]
             ).then(
                 fn=lambda: self.enable_components(True), 
-                                                    # Disable certain components
+                                                    # Enable certain components
                 inputs=[],
                 outputs=[self.gr_leftbar.chat_selector, \
                          self.gr_leftbar.new_btn]
