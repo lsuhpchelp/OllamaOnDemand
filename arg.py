@@ -80,11 +80,6 @@ def get_args():
         "--ollama-models", type=str, default="/home/"+getpass.getuser()+"/.ollama",
         help="Path to Ollama models."
     )
-    
-    group_ollama.add_argument(
-        "--ollama-spread-gpu", type=str, default="1",
-        help="Whether Ollama will attempt to spread load on multiple GPUs, if available."
-    )
 
     return parser.parse_args()
 

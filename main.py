@@ -107,7 +107,7 @@ class OllamaOnDemandUI:
         env = os.environ.copy()
         env["OLLAMA_HOST"] = self.args.ollama_host
         env["OLLAMA_MODELS"] = self.settings["ollama_models"]
-        env["OLLAMA_SCHED_SPREAD"] = self.args.ollama_spread_gpu
+        env["OLLAMA_SCHED_SPREAD"] = "1"
 
         # Start the Ollama server
         print("Starting Ollama server on " + self.args.ollama_host)
@@ -1131,9 +1131,9 @@ class OllamaOnDemandUI:
             logo = "gradio_api/file=" + self.current_path + "/images/logo.png"
             gr.Markdown(
                 f"""
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <img src="{logo}" alt="Logo" style="height:40px; width: 40px;">
-                    <h1 style="margin: 0;">Ollama OnDemand</h1>
+                <div style="display: flex; align-items: center; gap: 1px;">
+                    <img src="{logo}" alt="Logo" style="height:35px; width: 35px;">
+                    <h1 style="margin: 0;">llama OnDemand</h1>
                 </div>
                 """
             )
@@ -1219,7 +1219,7 @@ class OllamaOnDemandUI:
             None
         """
         
-        with gr.Sidebar(width=350, position="right", label="Settings", open=True):
+        with gr.Sidebar(width=350, position="right", label="Settings", open=False):
             
             # Title
             gr.Markdown("## User Settings")
