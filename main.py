@@ -1170,7 +1170,8 @@ class OllamaOnDemandUI:
         """
             
         # Header
-        with gr.Column(
+        with gr.Row(
+            elem_id="gr-main-header",
             elem_classes=["no-shrink", "main-max-width"]
         ):
             
@@ -1184,14 +1185,15 @@ class OllamaOnDemandUI:
                 </div>
                 """
             )
-            #f"![Logo]({logo}) # Ollama OnDemand")
             
             # Model selector
             self.gr_main.model_dropdown = gr.Dropdown(
                 choices=self.models,
                 value=self.settings["model_selected"],
                 interactive=True,
-                show_label=False
+                show_label=False,
+                container=False,
+                elem_id="gr-model-selector"
             )
         
         # Body

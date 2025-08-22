@@ -27,7 +27,7 @@ footer {
     Main view
    ================================================================= */
 
-/* Main: Remove side padding and margin to expand entire app's view*/
+/* Main: Remove side padding and margin to expand entire app's view */
 .app {
     padding-left: 0 !important;
     padding-right: 0 !important;
@@ -36,7 +36,7 @@ footer {
     max-width: 100vw !important;
 }
 
-/* Main: Max width, padding and centering for most widgets*/
+/* Main: Max width, padding and centering for most widgets */
 .main-max-width {
     max-width: 800px;
     margin-left: auto;
@@ -44,10 +44,32 @@ footer {
     padding-left: 16px;
     padding-right: 16px;
 }
+
+/* Main: Header */
+#gr-main-header {
+    border: none;
+    border-bottom: 1px solid var(--block-border-color);
+    padding-bottom: 10px;
+}
+
+/* Model Selector */
+#gr-model-selector {
+    max-width: 200px;
+    border-width: 0px !important;
+    box-shadow: none !important;
+    background: none !important;
+    background-color: transparent !important;
+    font-weight: bold;
+}
+#gr-model-selector .svelte-1hfxrpf{
+    box-shadow: none !important;
+    background: none !important;
+    background-color: transparent !important;
+}
    
 /* Chatbot container (100% height minus fixed header and footer) */
 #gr-chatbot-container {
-    height: calc(100vh - 240px);
+    height: calc(100vh - 170px);
     display: flex;
     flex-direction: column;
     min-height: 0;
