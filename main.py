@@ -1204,7 +1204,7 @@ class OllamaOnDemandUI:
                 type="messages",
                 show_copy_button=True,
                 editable="user",
-                allow_tags=False,
+                allow_tags=True,
                 elem_id="gr-chatbot"
             )
             
@@ -1432,10 +1432,14 @@ class OllamaOnDemandUI:
             None
         """
         
+        # Set page icon
+        set_icon = f"<link rel='icon' type='image/png' href='gradio_api/file={self.current_path}/images/logo.png'>\n\n"
+        
         with gr.Blocks(
-            css_paths=self.current_path+'/grblocks.css',
-            title="Ollama OnDemand",
-            head_paths=self.current_path+'/head.html'
+            css_paths   = self.current_path+'/grblocks.css',
+            title       = "Ollama OnDemand",
+            head        = set_icon,
+            head_paths  = self.current_path+'/head.html'
         ) as self.demo:
             
             #----------------------------------------------------------
