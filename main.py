@@ -1180,8 +1180,8 @@ class OllamaOnDemandUI:
             gr.Markdown(
                 f"""
                 <div style="display: flex; align-items: center; gap: 1px;">
-                    <img src="{logo}" alt="Logo" style="height:35px; width: 35px;">
-                    <h1 style="margin: 0;">llama OnDemand</h1>
+                    <img src="{logo}" alt="Logo" style="height:30px; width: 30px;">
+                    <h2 style="margin: 0;">llama OnDemand</h2>
                 </div>
                 """
             )
@@ -1193,6 +1193,7 @@ class OllamaOnDemandUI:
                 interactive=True,
                 show_label=False,
                 container=False,
+                min_width=0,
                 elem_id="gr-model-selector"
             )
         
