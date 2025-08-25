@@ -1180,8 +1180,8 @@ class OllamaOnDemandUI:
             gr.Markdown(
                 f"""
                 <div style="display: flex; align-items: center; gap: 1px;">
-                    <img src="{logo}" alt="Logo" style="height:30px; width: 30px;">
-                    <h2 style="margin: 0;">llama OnDemand</h2>
+                    <img src="{logo}" alt="Logo" style="height:40px; width: 40px;">
+                    <h2 style="margin: 0;" class="mobile-header">llama OnDemand</h2>
                 </div>
                 """
             )
@@ -1237,7 +1237,7 @@ class OllamaOnDemandUI:
             None
         """
         
-        with gr.Sidebar(width=350):
+        with gr.Sidebar(width=350, position="left", open=False) as self.gr_leftbar.leftbar:
 
             # New Chat button
             self.gr_leftbar.new_btn = gr.Button("💬️ New Chat")
@@ -1269,7 +1269,7 @@ class OllamaOnDemandUI:
             None
         """
         
-        with gr.Sidebar(width=350, position="right", label="Settings", open=False):
+        with gr.Sidebar(width=350, position="right", label="Settings", open=False) as self.gr_rightbar.rightbar:
             
             # Title
             gr.Markdown("## User Settings")
@@ -1474,11 +1474,28 @@ class OllamaOnDemandUI:
             #----------------------------------------------------------
             # Load UI
             #----------------------------------------------------------
+        
+            # Expand left bar if not on mobile device
+            expand_leftbar = """
+                function() {
+                    const leftbar = document.querySelector(".sidebar:not(.right)");
+                    const expand_btn = leftbar.querySelector("button");
+                    if (leftbar && expand_btn && window.innerWidth > 768) {
+                        expand_btn.click();
+                    }
+                }
+            """
             
+            # Load UI
             self.demo.load(
                 fn=lambda : cs.load_chat(0),
                 inputs=[],
                 outputs=[self.gr_main.chatbot]
+            ).then(
+                fn=None,
+                inputs=[],
+                outputs=[],
+                js=expand_leftbar
             )
     
     def launch(self):

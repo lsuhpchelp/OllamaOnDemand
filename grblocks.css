@@ -22,7 +22,6 @@ footer {
     top: 50%;
 }
    
-   
 /* =================================================================
     Main view
    ================================================================= */
@@ -41,8 +40,8 @@ footer {
     max-width: 800px;
     margin-left: auto;
     margin-right: auto;
-    padding-left: 10px;
-    padding-right: 10px;
+    padding-left: 16px;
+    padding-right: 16px;
 }
 
 /* Main: Header */
@@ -54,7 +53,7 @@ footer {
 
 /* Model Selector */
 #gr-model-selector {
-    max-width: 140px;
+    max-width: 170px;
     border-width: 0px !important;
     box-shadow: none !important;
     background: none !important;
@@ -65,14 +64,15 @@ footer {
     box-shadow: none !important;
     background: none !important;
     background-color: transparent !important;
+    justify-items: right;
 }
 #gr-model-selector .icon-wrap{
-    right: -5px !important;
+    right: 0px !important;
 }
    
 /* Chatbot container (100% height minus fixed header and footer) */
 #gr-chatbot-container {
-    height: calc(100vh - 170px);
+    height: calc(100dvh - 170px);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -113,6 +113,13 @@ footer {
     margin-right: auto;
     padding-left: 10px;
     padding-right: 10px;
+}
+   
+/* Change header on mobile devices */
+@media only screen and (max-width: 768px) {
+  .mobile-header {
+    display: none;
+  }
 }
 
 
