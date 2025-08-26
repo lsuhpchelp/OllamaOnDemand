@@ -1,6 +1,10 @@
 <script>
 
-// Select chat
+
+// --------------------------------------------------------------------
+// Select Chat
+// --------------------------------------------------------------------
+
 function select_chat_js(index) {
     const chatindex_gr = document.getElementById("hidden_input_chatindex").querySelector("input");
     const action_btn_gr = document.getElementById("hidden_btn_select");
@@ -16,17 +20,29 @@ function select_chat_js(index) {
             entry.classList.remove("active-chat");
         });
         document.getElementById("chat-entry-" + index).classList.add("active-chat")
+        
+        // Close left sidebar if on mobile device
+        const leftbar = document.querySelector(".sidebar:not(.right)");
+        const expand_btn = leftbar.querySelector("button");
+        if (leftbar && expand_btn && window.innerWidth < 768) {
+            expand_btn.click();
+        }
     }
 }
 
-// Open "..." menu
+
+// --------------------------------------------------------------------
+// "..." Menu
+// --------------------------------------------------------------------
+
+// Open menu
 function open_menu(index) {
     close_all_menus();
     const menu = document.getElementById('chat-menu-' + index);
     if (menu) menu.style.display = 'block';
 }
 
-// close all menues
+// Close all menues
 function close_all_menus() {
     document.querySelectorAll('.chat-menu').forEach(menu => {
         menu.style.display = 'none';
@@ -36,7 +52,12 @@ function close_all_menus() {
 // Close all menues when clicking anywhere
 window.addEventListener('click', () => close_all_menus());
 
-// Rename chat handler
+
+// --------------------------------------------------------------------
+// Rename Chat
+// --------------------------------------------------------------------
+
+// Main handler
 function rename_chat_js(index) {
     close_all_menus();
     const chat_title = document.getElementById(`chat-title-${index}`);
@@ -101,7 +122,12 @@ function rename_chat_submit_js(index) {
     }
 }
 
+
+// --------------------------------------------------------------------
 // Export chat
+// --------------------------------------------------------------------
+
+// Main handler
 function export_chat_js(index) {
     close_all_menus();
     const chatindex_gr = document.getElementById("hidden_input_chatindex").querySelector("input");
@@ -126,7 +152,10 @@ function trigger_json_download(filename, json_string) {
     URL.revokeObjectURL(url); // cleanup
 }
 
+// --------------------------------------------------------------------
 // Delete chat
+// --------------------------------------------------------------------
+
 function delete_chat_js(index) {
     close_all_menus();
     if (confirm("Are you sure you want to delete this chat?")) {
