@@ -13,7 +13,7 @@ footer {
 }
 
 /* Hide helper */
-.hidden {
+.custom-hidden{
     display: none !important;
 }
 
@@ -135,6 +135,11 @@ footer {
 }
 .sidebar-content {
     height: 100% !important;
+}
+
+/* Hide auto-generated form border */
+.sidebar:not(.right) .form {
+    border: none;
 }
 
 /* Chat entry block style */

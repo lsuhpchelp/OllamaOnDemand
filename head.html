@@ -42,9 +42,9 @@ function rename_chat_js(index) {
     const chat_title = document.getElementById(`chat-title-${index}`);
     const chat_title_input = document.getElementById(`chat-title-input-${index}`);
     if (chat_title && chat_title_input) {
-        chat_title.classList.add("hidden");
+        chat_title.classList.add("custom-hidden");
         chat_title_input.value = chat_title.textContent
-        chat_title_input.classList.remove("hidden");
+        chat_title_input.classList.remove("custom-hidden");
         chat_title_input.focus();
         chat_title_input.select();
     }
@@ -64,8 +64,8 @@ function rename_chat_cancel_js(index) {
     const chat_title = document.getElementById(`chat-title-${index}`);
     const chat_title_input = document.getElementById(`chat-title-input-${index}`);
     if (chat_title && chat_title_input) {
-        chat_title.classList.remove("hidden");
-        chat_title_input.classList.add("hidden");
+        chat_title.classList.remove("custom-hidden");
+        chat_title_input.classList.add("custom-hidden");
     }
 }
 
@@ -96,8 +96,8 @@ function rename_chat_submit_js(index) {
         action_btn_gr.click();
 
         // Restore display state
-        chat_title_input.classList.add("hidden");
-        chat_title.classList.remove("hidden");
+        chat_title_input.classList.add("custom-hidden");
+        chat_title.classList.remove("custom-hidden");
     }
 }
 

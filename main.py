@@ -1020,7 +1020,7 @@ class OllamaOnDemandUI:
                 html += f"""
                 <div class='chat-entry {active}' onclick="select_chat_js({i})" id='chat-entry-{i}'>
                     <span class='chat-title' id='chat-title-{i}' title='{title}'>{title}</span>
-                    <input class='chat-title-input hidden' id='chat-title-input-{i}' autocomplete='off'
+                    <input class='chat-title-input custom-hidden' id='chat-title-input-{i}' autocomplete='off'
                            onkeydown="rename_chat_confirm_js(event, {i})"
                            onblur="rename_chat_cancel_js({i})" 
                             onclick="event.stopPropagation()" />
@@ -1252,13 +1252,13 @@ class OllamaOnDemandUI:
             )
             
             # Hidden elements (For customized JS responses)
-            self.gr_leftbar.hidden_input_chatindex = gr.Number(visible=False, elem_id="hidden_input_chatindex")
-            self.gr_leftbar.hidden_input_rename = gr.Textbox(visible=False, elem_id="hidden_input_rename")
-            self.gr_leftbar.hidden_input_export = gr.Textbox(visible=False)
-            self.gr_leftbar.hidden_btn_select = gr.Button(visible=False, elem_id="hidden_btn_select")
-            self.gr_leftbar.hidden_btn_rename = gr.Button(visible=False, elem_id="hidden_btn_rename")
-            self.gr_leftbar.hidden_btn_export = gr.Button(visible=False, elem_id="hidden_btn_export")
-            self.gr_leftbar.hidden_btn_delete = gr.Button(visible=False, elem_id="hidden_btn_delete")
+            self.gr_leftbar.hidden_input_chatindex = gr.Number(elem_id="hidden_input_chatindex", elem_classes=["custom-hidden"])
+            self.gr_leftbar.hidden_input_rename = gr.Textbox(elem_id="hidden_input_rename", elem_classes=["custom-hidden"])
+            self.gr_leftbar.hidden_input_export = gr.Textbox(elem_classes=["custom-hidden"])
+            self.gr_leftbar.hidden_btn_select = gr.Button(elem_id="hidden_btn_select", elem_classes=["custom-hidden"])
+            self.gr_leftbar.hidden_btn_rename = gr.Button(elem_id="hidden_btn_rename", elem_classes=["custom-hidden"])
+            self.gr_leftbar.hidden_btn_export = gr.Button(elem_id="hidden_btn_export", elem_classes=["custom-hidden"])
+            self.gr_leftbar.hidden_btn_delete = gr.Button(elem_id="hidden_btn_delete", elem_classes=["custom-hidden"])
 
     
     def build_right(self):
