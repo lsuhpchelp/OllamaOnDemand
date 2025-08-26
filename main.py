@@ -1224,7 +1224,9 @@ class OllamaOnDemandUI:
                 show_label=False,
                 file_types=["image"],
                 file_count="multiple",
-                max_plain_text_length=10000
+                max_lines=10,
+                max_plain_text_length=20000,
+                elem_id="gr-user-input"
             )
     
     def build_left(self):
@@ -1717,6 +1719,25 @@ class OllamaOnDemandUI:
                 inputs=[self.gr_main.user_input],
                 outputs=[self.gr_main.chatbot, self.gr_main.user_input]
             )
+        )
+        
+        # User input: Change textarea height
+        self.gr_main.user_input.change(
+            fn=None,
+            inputs=[],
+            outputs=[],
+            js="""
+            function() {
+                const container = document.getElementById('gr-chatbot-container');
+                const header = document.getElementById('gr-main-header');
+                const inputBox = document.getElementById('gr-user-input');
+                if (container && inputBox && header) {
+                    const inputHeight = inputBox.offsetHeight;
+                    const headerHeight = header.offsetHeight;
+                    container.style.height = `calc(100dvh - ${inputHeight + headerHeight + 70}px)`;
+                }
+            }
+            """
         )
         
         # User input: Stop

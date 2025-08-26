@@ -72,7 +72,7 @@ footer {
    
 /* Chatbot container (100% height minus fixed header and footer) */
 #gr-chatbot-container {
-    height: calc(100dvh - 170px);
+    height: calc(100dvh - 173px);
     display: flex;
     flex-direction: column;
     min-height: 0;
