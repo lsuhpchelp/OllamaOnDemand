@@ -1069,45 +1069,53 @@ class OllamaOnDemandUI:
         else:
             default = True
         
-        # Build UI components
-        with gr.Row():
-            
-            # Display name
-            gr.Markdown("**" + name.capitalize() + "**")
-            
-            # Default checkbox
-            self.gr_rightbar.settings_defaults[name] = \
-                gr.Checkbox(label="(Use default)", 
-                            interactive=True, 
-                            container=False, 
-                            value=default,
-                            min_width=None)
+        # If component is gr.Markdown, then just build it
+        if (component == gr.Markdown):
+        
+            # Render markdown
+            component(**component_init)
+        
+        # Otherwise, build UI components
+        else:
+        
+            with gr.Row():
                 
-        # Build adjusting component
-        value = self.settings.get("options").get(name) if self.settings.get("options") else 0
-        self.gr_rightbar.settings_components[name] = component(
-            value = value,
-            visible = not default, 
-            interactive = True, 
-            **component_init
-        )
-        
-        # Add separator
-        gr.Markdown("")
-        
-        # Register checkbox behavior
-        self.gr_rightbar.settings_defaults[name].change(
-            fn = lambda arg_value, arg_is_default: self.settings_param_default_change(name, arg_value, arg_is_default),
-            inputs = [self.gr_rightbar.settings_components[name], self.gr_rightbar.settings_defaults[name]],
-            outputs = [self.gr_rightbar.settings_components[name]]
-        )
-        
-        # Register adjusting component behavior
-        self.gr_rightbar.settings_components[name].change(
-            fn = lambda arg_value: self.settings_param_value_change(name, arg_value),
-            inputs = [self.gr_rightbar.settings_components[name]],
-            outputs = []
-        )
+                # Display name
+                gr.Markdown("**" + name.capitalize() + "**")
+                
+                # Default checkbox
+                self.gr_rightbar.settings_defaults[name] = \
+                    gr.Checkbox(label="(Use default)", 
+                                interactive=True, 
+                                container=False, 
+                                value=default,
+                                min_width=None)
+                    
+            # Build adjusting component
+            value = self.settings.get("options").get(name) if self.settings.get("options") else 0
+            self.gr_rightbar.settings_components[name] = component(
+                value = value,
+                visible = not default, 
+                interactive = True, 
+                **component_init
+            )
+            
+            # Add separator
+            gr.Markdown("")
+            
+            # Register checkbox behavior
+            self.gr_rightbar.settings_defaults[name].change(
+                fn = lambda arg_value, arg_is_default: self.settings_param_default_change(name, arg_value, arg_is_default),
+                inputs = [self.gr_rightbar.settings_components[name], self.gr_rightbar.settings_defaults[name]],
+                outputs = [self.gr_rightbar.settings_components[name]]
+            )
+            
+            # Register adjusting component behavior
+            self.gr_rightbar.settings_components[name].change(
+                fn = lambda arg_value: self.settings_param_value_change(name, arg_value),
+                inputs = [self.gr_rightbar.settings_components[name]],
+                outputs = []
+            )
         
     def generate_settings_model_name_choices(self):
         """
@@ -1181,7 +1189,7 @@ class OllamaOnDemandUI:
                 f"""
                 <div style="display: flex; align-items: center; gap: 1px;">
                     <img src="{logo}" alt="Logo" style="height:40px; width: 40px;">
-                    <h2 style="margin: 0;" class="mobile-header">llama OnDemand</h2>
+                    <h2 style="margin-top: 10px;" class="mobile-header">llama OnDemand</h2>
                 </div>
                 """
             )
@@ -1278,87 +1286,20 @@ class OllamaOnDemandUI:
             
             # Table 1: Generation parameters
             with gr.Tab("Parameters"):
-                
-                self.generate_settings_component(\
-                    name = "num_predict", 
-                    component = gr.Number,
-                    component_init = {
-                        "label":                "(Maximum number of tokens)",
-                        "minimum":              0,
-                        "precision":            0      
-                    }
-                )
-                
-                self.generate_settings_component(\
-                    name = "stop", 
-                    component = gr.Textbox,
-                    component_init = {
-                        "label":                "(Stop sequence. Seperated by \",\")",
-                    }
-                )
-                
-                self.generate_settings_component(\
-                    name = "temperature",
-                    component = gr.Slider,
-                    component_init = { 
-                        "label":                "(Randomness)",
-                        "minimum":              0,
-                        "maximum":              2,
-                        "show_reset_button":    False       
-                    }
-                )
-                
-                self.generate_settings_component(\
-                    name = "top_p", 
-                    component = gr.Slider,
-                    component_init = {
-                        "label":                "(Nucleus sampling)",
-                        "minimum":              0,
-                        "maximum":              1,
-                        "show_reset_button":    False       
-                    }
-                )
-                
-                self.generate_settings_component(\
-                    name = "top_k", 
-                    component = gr.Number,
-                    component_init = {
-                        "label":                "(Considers only top K next tokens)",
-                        "minimum":              0,
-                        "precision":            0      
-                    }
-                )
-                
-                self.generate_settings_component(\
-                    name = "presence_penalty", 
-                    component = gr.Slider,
-                    component_init = {
-                        "label":                "(Penalty for repeating tokens)",
-                        "minimum":              -2,
-                        "maximum":              2,
-                        "show_reset_button":    False       
-                    }
-                )
-                
-                self.generate_settings_component(\
-                    name = "frequency_penalty", 
-                    component = gr.Slider,
-                    component_init = {
-                        "label":                "(Penalty for frequent tokens)",
-                        "minimum":              -2,
-                        "maximum":              2,
-                        "show_reset_button":    False       
-                    }
-                )
-                
-                self.generate_settings_component(\
-                    name = "seed", 
-                    component = gr.Number,
-                    component_init = {
-                        "label":                "(Random seed)",
-                        "precision":            0      
-                    }
-                )
+            
+                with gr.Column(elem_classes=["param_list"]):
+            
+                    # Read parameter setting JSON file
+                    with open(self.current_path+'/usersettings_parameters.json', "r", encoding="utf-8") as f:
+                        params = json.load(f)
+                        
+                    # Generate parameters
+                    for param in params:
+                        self.generate_settings_component(
+                            name = param["name"], 
+                            component = getattr(gr, param["component"]),
+                            component_init = param["component_init"]
+                        )
             
             # Table 2: Ollama Models
             with gr.Tab("Models"):

@@ -263,3 +263,8 @@ footer {
     background: none !important;
     background-color: transparent !important;
 }
+
+/* Parameter list gap */
+.param_list {
+    gap: 8px
+}
