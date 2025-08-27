@@ -1078,10 +1078,10 @@ class OllamaOnDemandUI:
         # Otherwise, build UI components
         else:
         
-            with gr.Row():
+            with gr.Row(elem_classes = ["param-item"]):
                 
                 # Display name
-                gr.Markdown("**" + name.capitalize() + "**")
+                gr.Markdown("**" + name + "**")
                 
                 # Default checkbox
                 self.gr_rightbar.settings_defaults[name] = \
@@ -1099,9 +1099,6 @@ class OllamaOnDemandUI:
                 interactive = True, 
                 **component_init
             )
-            
-            # Add separator
-            gr.Markdown("")
             
             # Register checkbox behavior
             self.gr_rightbar.settings_defaults[name].change(
@@ -1284,13 +1281,13 @@ class OllamaOnDemandUI:
             # Title
             gr.Markdown("## User Settings")
             
-            # Table 1: Generation parameters
-            with gr.Tab("Parameters"):
+            # Table 1: Ollama Parameters
+            with gr.Tab("Parameters", elem_classes=["settings-padding"]):
             
-                with gr.Column(elem_classes=["param_list"]):
+                with gr.Column(elem_classes=["param-list"]):
             
                     # Read parameter setting JSON file
-                    with open(self.current_path+'/usersettings_parameters.json', "r", encoding="utf-8") as f:
+                    with open(self.current_path+'/usersettings_params.json', "r", encoding="utf-8") as f:
                         params = json.load(f)
                         
                     # Generate parameters
@@ -1302,7 +1299,7 @@ class OllamaOnDemandUI:
                         )
             
             # Table 2: Ollama Models
-            with gr.Tab("Models"):
+            with gr.Tab("Models", elem_classes=["settings-padding"]):
                 
                 gr.Markdown("### Ollama Model Directory")
 

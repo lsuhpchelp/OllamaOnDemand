@@ -258,13 +258,25 @@ footer {
     Right sidebar: User Setings
    ================================================================= */
 
+/* User settings padding */
+.settings-padding {
+    padding: 5px;
+}
+
+/* Parameter list gap */
+.param-list {
+    gap: 8px
+}
+
+/* Parameter item style */
+.param-item {
+    height: 30px;
+    align-items: end;
+}
+
+/* This is currently not being used but saved for later */
 .padded-button {
     box-shadow: none !important;
     background: none !important;
     background-color: transparent !important;
-}
-
-/* Parameter list gap */
-.param_list {
-    gap: 8px
 }

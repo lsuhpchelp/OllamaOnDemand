@@ -1,0 +1,301 @@
+[
+    {
+        "name" :                    "breaker", 
+        "component" :               "Markdown",
+        "component_init" : {
+            "value":                "### Load time parameters"    
+        }
+    },
+    {
+        "name" :                    "breaker", 
+        "component" :               "Markdown",
+        "component_init" : {
+            "value":                "---"    
+        }
+    },
+    {
+        "name" :                    "embedding_only", 
+        "component" :               "Checkbox",
+        "component_init" : {
+            "label":                "(Load model in embedding mode only, no text generation)"
+        }
+    },
+    {
+        "name" :                    "f16_kv", 
+        "component" :               "Checkbox",
+        "component_init" : {
+            "label":                "(Store key/value cache in float16 instead of float32)"
+        }
+    },
+    {
+        "name" :                    "logits_all", 
+        "component" :               "Checkbox",
+        "component_init" : {
+            "label":                "(Return logits for all tokens instead of choosing from probabilities)"
+        }
+    },
+    {
+        "name" :                    "low_vram", 
+        "component" :               "Checkbox",
+        "component_init" : {
+            "label":                "(Enable low VRAM mode. May offload more to GPU)"
+        }
+    },
+    {
+        "name" :                    "main_gpu", 
+        "component" :               "Number",
+        "component_init" : {
+            "label":                "(Primary GPU index)",
+            "minimum":              0,
+            "precision":            0    
+        }
+    },
+    {
+        "name" :                    "num_batch", 
+        "component" :               "Number",
+        "component_init" : {
+            "label":                "(Prompt token batch size)",
+            "minimum":              0,
+            "precision":            0    
+        }
+    },
+    {
+        "name" :                    "num_ctx", 
+        "component" :               "Number",
+        "component_init" : {
+            "label":                "(Context window length)",
+            "minimum":              0,
+            "precision":            0    
+        }
+    },
+    {
+        "name" :                    "num_gpu", 
+        "component" :               "Number",
+        "component_init" : {
+            "label":                "(Number of layers to offload to GPU)",
+            "minimum":              0,
+            "precision":            0    
+        }
+    },
+    {
+        "name" :                    "num_thread", 
+        "component" :               "Number",
+        "component_init" : {
+            "label":                "(Number of CPU threads used for model inference)",
+            "minimum":              0,
+            "precision":            0    
+        }
+    },
+    {
+        "name" :                    "numa", 
+        "component" :               "Checkbox",
+        "component_init" : {
+            "label":                "(Enable Non-Uniform Memory Access)"
+        }
+    },
+    {
+        "name" :                    "use_mlock", 
+        "component" :               "Checkbox",
+        "component_init" : {
+            "label":                "(Lock model weights in memory, avoid paging/swapping)"
+        }
+    },
+    {
+        "name" :                    "use_mmap", 
+        "component" :               "Checkbox",
+        "component_init" : {
+            "label":                "(Use memory-map model weights instead of loading full model)"
+        }
+    },
+    {
+        "name" :                    "vocab_only", 
+        "component" :               "Checkbox",
+        "component_init" : {
+            "label":                "(Load only the vocabulary, not full weights)"
+        }
+    },
+    
+    
+    
+    {
+        "name" :                    "breaker", 
+        "component" :               "Markdown",
+        "component_init" : {
+            "value":                " "    
+        }
+    },
+    {
+        "name" :                    "breaker", 
+        "component" :               "Markdown",
+        "component_init" : {
+            "value":                "### Run time parameters"    
+        }
+    },
+    {
+        "name" :                    "breaker", 
+        "component" :               "Markdown",
+        "component_init" : {
+            "value":                "---"    
+        }
+    },
+    {
+        "name" :                    "frequency_penalty", 
+        "component" :               "Slider",
+        "component_init" : {
+            "label":                "(Penalty for frequent tokens)",
+            "minimum":              -2,
+            "maximum":              2,
+            "show_reset_button":    false
+        }
+    },
+    {
+        "name" :                    "mirostat", 
+        "component" :               "Slider",
+        "component_init" : {
+            "label":                "(Mirostat adaptive sampling mode)",
+            "minimum":              0,
+            "maximum":              2,
+            "step":                 1,
+            "precision":            0,
+            "show_reset_button":    false
+        }
+    },
+    {
+        "name" :                    "mirostat_eta", 
+        "component" :               "Slider",
+        "component_init" : {
+            "label":                "(Mirostat adaptive sampling learning rate)",
+            "minimum":              0,
+            "maximum":              1,
+            "show_reset_button":    false
+        }
+    },
+    {
+        "name" :                    "mirostat_tau", 
+        "component" :               "Slider",
+        "component_init" : {
+            "label":                "(Mirostat adaptive sampling target perplexity)",
+            "minimum":              0,
+            "maximum":              10,
+            "show_reset_button":    false
+        }
+    },
+    {
+        "name" :                    "num_keep", 
+        "component" :               "Number",
+        "component_init" : {
+            "label":                "(Number of tokens to keep at the beginning of prompt in case of overflow)",
+            "minimum":              0,
+            "precision":            0      
+        }
+    },
+    {
+        "name" :                    "num_predict", 
+        "component" :               "Number",
+        "component_init" : {
+            "label":                "(Maximum number of tokens)",
+            "minimum":              0,
+            "precision":            0      
+        }
+    },
+    {
+        "name" :                    "penalize_newline", 
+        "component" :               "Checkbox",
+        "component_init" : {
+            "label":                "(Penalize new line '\\n' tokens)"
+        }
+    },
+    {
+        "name" :                    "presence_penalty", 
+        "component" :               "Slider",
+        "component_init" : {
+            "label":                "(Penalty for repeating tokens)",
+            "minimum":              -2,
+            "maximum":              2,
+            "show_reset_button":    false
+        }
+    },
+    {
+        "name" :                    "repeat_last_n", 
+        "component" :               "Number",
+        "component_init" : {
+            "label":                "(How many recent tokens check for repetition penalty)",
+            "minimum":              0,
+            "precision":            0      
+        }
+    },
+    {
+        "name" :                    "repeat_penalty", 
+        "component" :               "Slider",
+        "component_init" : {
+            "label":                "(Penalizes repeating phrases)",
+            "minimum":              0,
+            "maximum":              5,
+            "show_reset_button":    false
+        }
+    },
+    {
+        "name" :                    "seed", 
+        "component" :               "Number",
+        "component_init" : {
+            "label":                "(Random seed)",
+            "precision":            0      
+        }
+    },
+    {
+        "name" :                    "stop", 
+        "component" :               "Textbox",
+        "component_init" : {
+            "label":                "(Stop sequence. Seperated by \",\")"
+        }
+    },
+    {
+        "name" :                    "temperature",
+        "component" :               "Slider",
+        "component_init" : { 
+            "label":                "(Randomness)",
+            "minimum":              0,
+            "maximum":              2,
+            "show_reset_button":    false
+        }
+    },
+    {
+        "name" :                    "tfs_z", 
+        "component" :               "Slider",
+        "component_init" : {
+            "label":                "(Tail-Free Sampling: Trim tokens from tail up to set probability)",
+            "minimum":              0,
+            "maximum":              1,
+            "show_reset_button":    false
+        }
+    },
+    {
+        "name" :                    "top_k", 
+        "component" :               "Number",
+        "component_init" : {
+            "label":                "(Sampling: Considers only top K next tokens)",
+            "minimum":              0,
+            "precision":            0      
+        }
+    },
+    {
+        "name" :                    "top_p", 
+        "component" :               "Slider",
+        "component_init" : {
+            "label":                "(Nucleus sampling: Keep tokens up to set probability)",
+            "minimum":              0,
+            "maximum":              1,
+            "show_reset_button":    false
+        }
+    },
+    {
+        "name" :                    "typical_p", 
+        "component" :               "Slider",
+        "component_init" : {
+            "label":                "(Typical Sampling: Only keep 'typical' tokens within set probability)",
+            "minimum":              0,
+            "maximum":              1,
+            "show_reset_button":    false
+        }
+    }
+]
