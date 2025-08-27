@@ -373,16 +373,27 @@ class OllamaOnDemandUI:
         # Failsafe: Only stream while is_streaming is True
         if self.is_streaming:
         
-            # Pre-process options
+            # Make a copy of options for pre-processing
             options = self.settings.get("options").copy() if self.settings.get("options") else {}
-            if (options and options.get("stop")):
-                options["stop"] = options["stop"].split(",")    # Set up stop sequence
+            
+            # Pre-process "stop" sequence
+            if (options.get("stop")):
+                options["stop"] = options["stop"].split(",")
+            
+            # Pre-process "think" option
+            think = None
+            if ("think" in options):
+                think = options["think"]
+                del options["think"]
+                if (isinstance(think, str) and self.settings["model_selected"].split(":")[0] != "gpt-oss"):
+                    think = True
 
             # Generate next chat results
             response = self.client.chat(
                 model = self.settings["model_selected"],
                 messages = self.chat_history,
                 stream = True,
+                think = think,
                 options = options
             )
             

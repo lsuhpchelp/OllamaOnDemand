@@ -139,6 +139,19 @@
         }
     },
     {
+        "name" :                    "think", 
+        "component" :               "Dropdown",
+        "component_init" : {
+            "label":                "(Reasoning switch. None-boolean options only works for GPT-OSS models)",
+            "choices":              [["False", false], 
+                                     ["True", true],
+                                     ["'low'", "low"],
+                                     ["'medium'", "medium"],
+                                     ["'high'", "high"]],
+            "filterable":           false
+        }
+    },
+    {
         "name" :                    "frequency_penalty", 
         "component" :               "Slider",
         "component_init" : {
