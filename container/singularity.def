@@ -44,4 +44,4 @@ cd /opt && git clone https://github.com/lsuhpchelp/OllamaOnDemand
 %runscript
 ################################################################################
 
-python -u /opt/OllamaOnDemand/main.py
+python -u /opt/OllamaOnDemand/main.py "$@"
