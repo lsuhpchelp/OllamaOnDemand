@@ -36,3 +36,12 @@ wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge
 
 # Install Gradio
 pip install gradio==5.43.1 ollama==0.5.3
+
+# Clone Ollama OnDemand GitHub repo
+cd /opt && git clone https://github.com/lsuhpchelp/OllamaOnDemand
+
+################################################################################
+%runscript
+################################################################################
+
+python -u /opt/OllamaOnDemand/main.py
