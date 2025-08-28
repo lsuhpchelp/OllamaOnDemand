@@ -28,6 +28,15 @@
         }
     },
     {
+        "name" :                    "keep_alive", 
+        "component" :               "Number",
+        "component_init" : {
+            "label":                "(Seconds to keep model loaded in memory. '-1' to keep indefinitely)",
+            "minimum":              -1,
+            "precision":            0    
+        }
+    },
+    {
         "name" :                    "logits_all", 
         "component" :               "Checkbox",
         "component_init" : {

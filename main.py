@@ -387,6 +387,12 @@ class OllamaOnDemandUI:
                 del options["think"]
                 if (isinstance(think, str) and self.settings["model_selected"].split(":")[0] != "gpt-oss"):
                     think = True
+                    
+            # Pre-process "keep_alive" option
+            keep_alive = None
+            if ("keep_alive" in options):
+                keep_alive = options["keep_alive"]
+                del options["keep_alive"]
 
             # Generate next chat results
             response = self.client.chat(
@@ -394,6 +400,7 @@ class OllamaOnDemandUI:
                 messages = self.chat_history,
                 stream = True,
                 think = think,
+                keep_alive = keep_alive,
                 options = options
             )
             
@@ -1100,7 +1107,7 @@ class OllamaOnDemandUI:
                                 interactive=True, 
                                 container=False, 
                                 value=default,
-                                min_width=None)
+                                min_width=0)
                     
             # Build adjusting component
             value = self.settings.get("options").get(name) if self.settings.get("options") else 0
