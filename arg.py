@@ -54,7 +54,7 @@ def get_args():
     )
     
     group_server.add_argument(
-        "--root-path", type=str, default="/",
+        "--root-path", type=str, default="",
         help="Root path for web interface."
     )
     
@@ -77,7 +77,7 @@ def get_args():
     )
     
     group_ollama.add_argument(
-        "--ollama-models", type=str, default="/home/"+getpass.getuser()+"/.ollama",
+        "--ollama-models", type=str, default="/home/"+getpass.getuser()+"/.ollama/models",
         help="Path to Ollama models."
     )
 

@@ -127,10 +127,11 @@ class OllamaOnDemandUI:
         )
         
         # Wait until the server starts
+        url = "http://" + self.args.ollama_host if not self.args.ollama_host.startswith(("http://", "https://")) else self.args.ollama_host
         for _ in range(60): 
             
             try:
-                if requests.get(self.args.ollama_host).ok:
+                if requests.get(url).ok:
                     print("Ollama server is running")
                     return ""
             except:
