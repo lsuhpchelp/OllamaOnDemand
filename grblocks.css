@@ -117,7 +117,7 @@ footer {
 }
 
 /* Chatbot: Hide default clear button */
-#gr-chatbot .top-panel {
+#gr-chatbot .icon-button-wrapper.top-panel.hide-top-corner  {
     display: none !important;
 }
 

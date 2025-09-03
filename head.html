@@ -169,5 +169,15 @@ function delete_chat_js(index) {
     }
 }
 
+// --------------------------------------------------------------------
+// Collapse all thinking tags
+// --------------------------------------------------------------------
+
+function collapse_thinking() {
+    document.querySelectorAll("details.thinking[open]").forEach(el => {
+          el.removeAttribute("open");
+        });
+}
+
 </script>
 

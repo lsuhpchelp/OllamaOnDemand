@@ -92,7 +92,7 @@ class OllamaOnDemandUI:
         self.think_tags = {
             "head_tag":     "<think&#x200B;&#x200C;&#x2060;>\n\n",
             "tail_tag":     "\n\n</think&#x200B;&#x200C;&#x2060;>\n\n",
-            "head_html":    "<details><summary><i><b>(Thinking...)</b></summary>\n\n",
+            "head_html":    "<details open class='thinking'><summary><i><b>(Thinking...)</b></summary>\n\n",
             "tail_html":    "\n\n(Done thinking...)</i></details><br>\n\n"
         }
 
@@ -288,7 +288,7 @@ class OllamaOnDemandUI:
                     
     def chat_history_format(self):
         """
-        Format chat_history's thinking tag into a more clean HTML
+        Format chat_history into a more clean HTML
         
         Input:
             None
@@ -297,16 +297,32 @@ class OllamaOnDemandUI:
         """
         
         # Make a copy of the chat history
-        chat_history = self.chat_history.copy()
+        chat_history = []
         
         # Loop and replace
-        for chat in chat_history:
+        for chat in self.chat_history:
             
-            if chat["role"] == "assistant":
-                chat["content"] = chat["content"].replace(self.think_tags["head_tag"], 
+            # Make a copy
+            chat_tmp = chat.copy()
+            
+            # Format thinking process
+            if chat_tmp["role"] == "assistant":
+            
+                chat_tmp["content"] = chat_tmp["content"].replace(self.think_tags["head_tag"], 
                                                           self.think_tags["head_html"])
-                chat["content"] = chat["content"].replace(self.think_tags["tail_tag"], 
+                chat_tmp["content"] = chat_tmp["content"].replace(self.think_tags["tail_tag"], 
                                                           self.think_tags["tail_html"])
+            
+            # Format user uploaded files
+            elif (chat_tmp["role"] == "user" and chat_tmp.get("images")):
+            
+                # Append all images
+                for image in chat_tmp["images"]:
+                    chat_history.append({ "role": "user", "content": gr.Image(image) })
+                
+            # Append message
+            chat_history.append(chat_tmp)
+                                                          
         
         return(chat_history)
         
@@ -449,7 +465,8 @@ class OllamaOnDemandUI:
                 token_count += 1
                 
                 # Yield results
-                yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
+                #yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
+                yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
         
         # Once finished, set streaming to False
         self.is_streaming = False
@@ -506,7 +523,7 @@ class OllamaOnDemandUI:
         self.is_streaming = True
         
         # Update components
-        yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
+        yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
     
     def retry(self, retry_data: gr.RetryData):
         """
@@ -519,15 +536,22 @@ class OllamaOnDemandUI:
             user_input:         Update user input field to "" and button face
         """
         
+        # Find the correct index
+        (i, index) = (0, retry_data.index)
+        while (i <= index):
+            if (self.chat_history[i].get("images")):
+                index -= len(self.chat_history[i]["images"])
+            i += 1
+        
         # Revert to previous user message
-        self.chat_history[:] = self.chat_history[:retry_data.index+1]
+        self.chat_history[:] = self.chat_history[:index+1]
         self.chat_history.append({"role": "assistant", "content": ""})
             
         # Set to streaming and continue
         self.is_streaming = True
         
         # Update components
-        yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
+        yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
     
     def edit(self, edit_data: gr.EditData):
         """
@@ -540,8 +564,15 @@ class OllamaOnDemandUI:
             user_input:         Update user input field to "" and button face
         """
         
+        # Find the correct index
+        (i, index) = (0, edit_data.index)
+        while (i <= index):
+            if (self.chat_history[i].get("images")):
+                index -= len(self.chat_history[i]["images"])
+            i += 1
+        
         # Revert to editted user message
-        self.chat_history[:] = self.chat_history[:edit_data.index+1]
+        self.chat_history[:] = self.chat_history[:index+1]
         self.chat_history[-1]["content"] = edit_data.value
         self.chat_history.append({"role": "assistant", "content": ""})
             
@@ -549,7 +580,7 @@ class OllamaOnDemandUI:
         self.is_streaming = True
         
         # Update components
-        yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
+        yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
         
     def update_chat_selector(self):
         """
@@ -1230,6 +1261,7 @@ class OllamaOnDemandUI:
                 show_label=False,
                 type="messages",
                 show_copy_button=True,
+                group_consecutive_messages=False,
                 editable="user",
                 allow_tags=True,
                 elem_id="gr-chatbot"
@@ -1434,27 +1466,33 @@ class OllamaOnDemandUI:
             # Load UI
             #----------------------------------------------------------
         
-            # Expand left bar if not on mobile device
-            expand_leftbar = """
+            # Initialize page on load
+            init_html = """
                 function() {
+                
+                    // Expand left bar if not on mobile device
                     const leftbar = document.querySelector(".sidebar:not(.right)");
                     const expand_btn = leftbar.querySelector("button");
                     if (leftbar && expand_btn && window.innerWidth > 768) {
                         expand_btn.click();
                     }
+                    
+                    // Collapse all thinking tags
+                    collapse_thinking();
+                    
                 }
             """
             
             # Load UI
             self.demo.load(
-                fn=lambda : cs.load_chat(0),
+                fn=lambda : self.chat_history_format(),
                 inputs=[],
                 outputs=[self.gr_main.chatbot]
             ).then(
                 fn=None,
                 inputs=[],
                 outputs=[],
-                js=expand_leftbar
+                js=init_html
             )
     
     def launch(self):
@@ -1505,6 +1543,11 @@ class OllamaOnDemandUI:
                 fn=self.save_chat_history,          # Save chat history
                 inputs=[],
                 outputs=[]
+            ).then(
+                fn=None,
+                inputs=[],
+                outputs=[],
+                js="collapse_thinking()"
             )
         )
     
@@ -1732,6 +1775,11 @@ class OllamaOnDemandUI:
             fn=self.select_chat,
             inputs=[self.gr_leftbar.hidden_input_chatindex],
             outputs=[self.gr_main.chatbot]
+        ).then(
+            fn=None,
+            inputs=[],
+            outputs=[],
+            js="collapse_thinking()"
         )
         
         # Rename chat

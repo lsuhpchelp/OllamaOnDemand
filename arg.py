@@ -4,13 +4,7 @@ import argparse
 import getpass
 import os
 
-__version__ = "0.1.0"
-
-def get_group_info(group_name):
-    
-    return "-----------------------------------------------------------------------\n\t" \
-            + group_name + \
-            "\n-----------------------------------------------------------------------"
+__version__ = "1.0.0"
 
 def get_args():
     
@@ -25,11 +19,12 @@ def get_args():
     
     parser.add_argument(
         "--debug", action="store_true",
-        help="Enable debug mode"
+        help="Enable debug mode."
     )
 
     parser.add_argument(
         "--version", "-v",
+        help="Show Ollama OnDemand's version number.",
         action="version",
         version=f"Ollama OnDemand {__version__}"
     )
@@ -37,8 +32,8 @@ def get_args():
     #------------------------------------------------------------------
     # Group 1: Ollama Ondemand web service
     #------------------------------------------------------------------
-    group_server = parser.add_argument_group( \
-            get_group_info("Ollama OnDemand server settings"), \
+    group_server = parser.add_argument_group( 
+            "Ollama OnDemand server settings", 
             "Settings related to Ollama OnDemand app web server."
         )
 
@@ -66,8 +61,8 @@ def get_args():
     #------------------------------------------------------------------
     # Group 2: Ollama server settings
     #------------------------------------------------------------------
-    group_ollama = parser.add_argument_group( \
-            get_group_info("Ollama server settings"), \
+    group_ollama = parser.add_argument_group( 
+            "Ollama server settings", 
             "Settings related to Ollama server running as backend."
         )
     
