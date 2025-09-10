@@ -423,51 +423,62 @@ class OllamaOnDemandUI:
                 options = options
             )
             
-            # Reset thinking flag
-            is_thinking = False     # Or "S" (switchable thinking), "B" (Built-in thinking)
-            token_count = 0
-
-            # Stream results in chunks while not interrupted
-            for chunk in response:
+            # Try to stream
+            try:
             
-                # Breake if interrupted
-                if not self.is_streaming:
-                    break
+                # Reset thinking flag
+                is_thinking = False     # Or "S" (switchable thinking), "B" (Built-in thinking)
+                token_count = 0
+
+                # Stream results in chunks while not interrupted
+                for chunk in response:
                 
-                # Add chunk and thinking tag if needed
-                if (not is_thinking and chunk.message.thinking):
-                    # Switchable thinking mode: begin
-                    #   - When is_thinking was False but thinking attribute is not empty
-                    #   - Set is_thinking to "S" (switchable thinking)
-                    self.chat_history[-1]["content"] += self.think_tags["head_tag"] + chunk.message.thinking
-                    is_thinking = "S"
-                elif (is_thinking == "S" and chunk.message.thinking == None):
-                    # Switchable thinking mode: end
-                    #   - When is_thinking was "S" (switchable), but thinking attribute is now None
-                    #   - Set is_thinking to False (not thinking)
-                    self.chat_history[-1]["content"] += self.think_tags["tail_tag"] + chunk.message.content
-                    is_thinking = False
-                elif (token_count == 0 and chunk.message.content == "<think>"):
-                    # Built-in thinking (e.g., DeepSeek-R1): begin
-                    #   - When this token is the first token and is "<think>"
-                    #   - Set is_thinking to "B" (built-in thinking)
-                    self.chat_history[-1]["content"] += self.think_tags["head_tag"]
-                    is_thinking = "B"
-                elif (is_thinking == "B" and chunk.message.content == "</think>"):
-                    # Built-in thinking (e.g., DeepSeek-R1): end
-                    #   - When is_thinking was True (set for built-in thinking) but this token is "</think>"
-                    #   - Set is_thinking to False (not thinking)
-                    self.chat_history[-1]["content"] += self.think_tags["tail_tag"]
-                    is_thinking = False
-                else:
-                    # None of above: normal chunk
-                    self.chat_history[-1]["content"] += chunk.message.content or chunk.message.thinking or ""
+                    # Breake if interrupted
+                    if not self.is_streaming:
+                        break
+                    
+                    # Add chunk and thinking tag if needed
+                    if (not is_thinking and chunk.message.thinking):
+                        # Switchable thinking mode: begin
+                        #   - When is_thinking was False but thinking attribute is not empty
+                        #   - Set is_thinking to "S" (switchable thinking)
+                        self.chat_history[-1]["content"] += self.think_tags["head_tag"] + chunk.message.thinking
+                        is_thinking = "S"
+                    elif (is_thinking == "S" and chunk.message.thinking == None):
+                        # Switchable thinking mode: end
+                        #   - When is_thinking was "S" (switchable), but thinking attribute is now None
+                        #   - Set is_thinking to False (not thinking)
+                        self.chat_history[-1]["content"] += self.think_tags["tail_tag"] + chunk.message.content
+                        is_thinking = False
+                    elif (token_count == 0 and chunk.message.content == "<think>"):
+                        # Built-in thinking (e.g., DeepSeek-R1): begin
+                        #   - When this token is the first token and is "<think>"
+                        #   - Set is_thinking to "B" (built-in thinking)
+                        self.chat_history[-1]["content"] += self.think_tags["head_tag"]
+                        is_thinking = "B"
+                    elif (is_thinking == "B" and chunk.message.content == "</think>"):
+                        # Built-in thinking (e.g., DeepSeek-R1): end
+                        #   - When is_thinking was True (set for built-in thinking) but this token is "</think>"
+                        #   - Set is_thinking to False (not thinking)
+                        self.chat_history[-1]["content"] += self.think_tags["tail_tag"]
+                        is_thinking = False
+                    else:
+                        # None of above: normal chunk
+                        self.chat_history[-1]["content"] += chunk.message.content or chunk.message.thinking or ""
+                    
+                    # Token count ++
+                    token_count += 1
+                    
+                    # Yield results
+                    #yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
+                    yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
+            
+            # If error occurs
+            except Exception:
                 
-                # Token count ++
-                token_count += 1
-                
-                # Yield results
-                #yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
+                error = "[Error] An error has occured when generating a response! Please double check and try again!"
+                self.chat_history[-1]["content"] = error
+                gr.Warning(error, title="Error")
                 yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
         
         # Once finished, set streaming to False
