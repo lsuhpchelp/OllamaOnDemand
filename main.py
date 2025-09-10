@@ -313,12 +313,14 @@ class OllamaOnDemandUI:
                 chat_tmp["content"] = chat_tmp["content"].replace(self.think_tags["tail_tag"], 
                                                           self.think_tags["tail_html"])
             
-            # Format user uploaded files
+            # Format user uploaded images
             elif (chat_tmp["role"] == "user" and chat_tmp.get("images")):
             
-                # Append all images
-                for image in chat_tmp["images"]:
-                    chat_history.append({ "role": "user", "content": gr.Image(image) })
+                # Append single image or gallery, depending on the number of images
+                if (len(chat_tmp["images"]) == 1):
+                    chat_history.append({ "role": "user", "content": gr.Image(chat_tmp["images"][0]) })
+                else:
+                    chat_history.append({ "role": "user", "content": gr.Gallery(chat_tmp["images"]) })
                 
             # Append message
             chat_history.append(chat_tmp)
@@ -540,7 +542,7 @@ class OllamaOnDemandUI:
         (i, index) = (0, retry_data.index)
         while (i <= index):
             if (self.chat_history[i].get("images")):
-                index -= len(self.chat_history[i]["images"])
+                index -= 1
             i += 1
         
         # Revert to previous user message
@@ -568,7 +570,7 @@ class OllamaOnDemandUI:
         (i, index) = (0, edit_data.index)
         while (i <= index):
             if (self.chat_history[i].get("images")):
-                index -= len(self.chat_history[i]["images"])
+                index -= 1
             i += 1
         
         # Revert to editted user message

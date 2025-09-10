@@ -49,12 +49,12 @@ def get_args():
     )
     
     group_server.add_argument(
-        "--root-path", type=str, default="",
+        "--root-path", type=str,
         help="Root path for web interface."
     )
     
     group_server.add_argument(
-        "--workdir", "-w", type=str, default="/home/"+getpass.getuser()+"/.ollama/ollamaondemand",
+        "--workdir", "-w", type=str, default="/home/"+getpass.getuser()+"/.ollama/ondemand",
         help="Ollama Ondemand work directory for data storage."
     )
 
