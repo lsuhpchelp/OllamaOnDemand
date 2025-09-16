@@ -22,7 +22,7 @@ import usersettings as us
 #======================================================================
 
 class GradioComponents:
-    """An empty class used to same Gradio components."""
+    """An empty class used to deposit Gradio components."""
     pass
 
 class OllamaOnDemandUI:
@@ -175,7 +175,7 @@ class OllamaOnDemandUI:
         """
         
         models = sorted([model.model for model in self.client.list().models])
-        return models if models else ["(No model is found: Pull a model or change model directory to continue...)"]
+        return models if models else ["(No model...)"]
     
     def dict_installed_models(self):
         """
@@ -191,7 +191,10 @@ class OllamaOnDemandUI:
         
         for model in self.models:
             
-            name, tag = model.split(":")
+            if (len(model.split(":")) >= 2):
+                name, tag = model.split(":")
+            else:
+                continue
             
             if (name in model_dict):
                 model_dict[name].append(tag)
@@ -317,10 +320,12 @@ class OllamaOnDemandUI:
             elif (chat_tmp["role"] == "user" and chat_tmp.get("images")):
             
                 # Append single image or gallery, depending on the number of images
-                if (len(chat_tmp["images"]) == 1):
+                if (len(chat_tmp["images"]) <= 1):
                     chat_history.append({ "role": "user", "content": gr.Image(chat_tmp["images"][0]) })
+                elif (len(chat_tmp["images"]) >= 6):
+                    chat_history.append({ "role": "user", "content": gr.Gallery(chat_tmp["images"], columns=3) })
                 else:
-                    chat_history.append({ "role": "user", "content": gr.Gallery(chat_tmp["images"]) })
+                    chat_history.append({ "role": "user", "content": gr.Gallery(chat_tmp["images"], columns=2) })
                 
             # Append message
             chat_history.append(chat_tmp)
@@ -474,11 +479,10 @@ class OllamaOnDemandUI:
                     yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
             
             # If error occurs
-            except Exception:
+            except Exception as error: 
                 
-                error = "[Error] An error has occured when generating a response! Please double check and try again!"
-                self.chat_history[-1]["content"] = error
-                gr.Warning(error, title="Error")
+                self.chat_history[-1]["content"] = "[Error] An error has occured! Please see error message and and try again!"
+                gr.Warning(str(error), title="Error")
                 yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
         
         # Once finished, set streaming to False
