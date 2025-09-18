@@ -16,6 +16,7 @@ import gradio as gr
 from arg import get_args
 import chatsessions as cs
 import usersettings as us
+from humanize import naturalsize
 
 #======================================================================
 #                           Main UI class
@@ -164,18 +165,22 @@ class OllamaOnDemandUI:
     # Misc utilities
     #------------------------------------------------------------------
     
-    def list_installed_models(self):
+    def list_installed_models(self, formatted=False):
         """
         List all installed models.
         
         Input:
-            None
+            formatter:  Whether to return a formatted list of tuples for model selector dropdown (Default: False)
         Output: 
             models:     List of all model names
         """
+        if formatted:
+            models = sorted([(f"{model.model} ({naturalsize(model.size, binary=True, gnu=True, format='%.0f')})", model.model) \
+                        for model in self.client.list().models])
+        else:
+            models = sorted([model.model for model in self.client.list().models])
         
-        models = sorted([model.model for model in self.client.list().models])
-        return models if models else ["(No model...)"]
+        return models if models else ["(No model is installed...)"]
     
     def dict_installed_models(self):
         """
@@ -919,7 +924,7 @@ class OllamaOnDemandUI:
                 
         # Return
         return [error,                                                                      # Raise error
-                gr.update(choices=self.models, value=self.models[0], interactive=True),     # Model selector
+                gr.update(choices=self.list_installed_models(formatted=True), value=self.models[0], interactive=True),     # Model selector
                 gr.update(value=self.settings["ollama_models"], interactive=True),          # Model path textbox
                 gr.update(interactive=True),                                                # Model path save button
                 gr.update(interactive=True),                                                # Model path reset button
@@ -1036,7 +1041,7 @@ class OllamaOnDemandUI:
         """
                 
         # Return
-        return [gr.update(choices=self.models, \
+        return [gr.update(choices=self.list_installed_models(formatted=True), \
                           value=self.settings["model_selected"], \
                           interactive=True),                                                # Model selector
                 gr.update(interactive=True),                                                # Model path textbox
@@ -1260,7 +1265,7 @@ class OllamaOnDemandUI:
             
             # Model selector
             self.gr_main.model_dropdown = gr.Dropdown(
-                choices=self.models,
+                choices=self.list_installed_models(formatted=True),
                 value=self.settings["model_selected"],
                 interactive=True,
                 show_label=False,
@@ -1316,7 +1321,6 @@ class OllamaOnDemandUI:
 
             # New Chat button
             self.gr_leftbar.new_btn = gr.Button("💬️ New Chat")
-            #self.gr_leftbar.new_btn = gr.Button("New Chat", icon=self.current_path+"/images/new_chat.png")
             
             # Chat selector
             self.gr_leftbar.chat_selector = gr.HTML(

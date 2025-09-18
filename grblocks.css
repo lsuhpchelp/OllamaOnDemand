@@ -76,7 +76,7 @@ footer {
 
 /* Model Selector */
 #gr-model-selector {
-    max-width: 170px;
+    max-width: 200px;
     border-width: 0px !important;
     box-shadow: none !important;
     background: none !important;
@@ -171,8 +171,8 @@ footer {
     height: auto !important;
     overflow: visible !important;
 }
-.html-container {
-    padding: none !important;
+#chat-list-container .html-container {
+    padding: 0px !important;
 }
 
 .chat-entry {
