@@ -109,7 +109,7 @@ class OllamaOnDemandUI:
         Input:
             None
         Output:
-            None (raise error) or error message (return for gr.Error)
+            None (raise error) or error message (return for future use)
         """
         
         # Define environment variables
@@ -836,7 +836,6 @@ class OllamaOnDemandUI:
         Input:
             model_path:         Model path
         Output: 
-            error:              Error message
             gr.update:          Update to model selector 
             gr.update:          Update to model path
             gr.update * 2:      Updates to model path buttons
@@ -921,10 +920,13 @@ class OllamaOnDemandUI:
                 
                 # Error message
                 error = "Directory does not exist, you do not have access, or does not contain Ollama model!"
-                
+        
+        # Raise error
+        if (error):
+            gr.Warning(error, title="Error")
+        
         # Return
-        return [error,                                                                      # Raise error
-                gr.update(choices=self.list_installed_models(formatted=True), value=self.models[0], interactive=True),     # Model selector
+        return [gr.update(choices=self.list_installed_models(formatted=True), value=self.models[0], interactive=True),     # Model selector
                 gr.update(value=self.settings["ollama_models"], interactive=True),          # Model path textbox
                 gr.update(interactive=True),                                                # Model path save button
                 gr.update(interactive=True),                                                # Model path reset button
@@ -979,11 +981,8 @@ class OllamaOnDemandUI:
             tag:                Model tag
             action:             "install" or "remove"
         Output: 
-            error:              Error message
             status:             Status stream
         """
-        
-        error = ""
         
         try:
             
@@ -1002,7 +1001,7 @@ class OllamaOnDemandUI:
                         status += " ( **{:.0%}** )".format(completed / progress.get("total"))
                     
                     # Yield progress
-                    yield [error, status]
+                    yield [status]
                     
             elif (action == "remove"):
             
@@ -1011,7 +1010,7 @@ class OllamaOnDemandUI:
                 
             else:
             
-                error = "Invalid action!"
+                gr.Warning("Invalid action!", label="Error")
             
             # Update model list
             self.models = self.list_installed_models()
@@ -1021,11 +1020,11 @@ class OllamaOnDemandUI:
             
         except Exception as e:
             
-            # Error message
-            error = e
+            # Raise error
+            gr.Warning(str(e), label="Error")
                 
         # Return
-        yield [error, ""]
+        yield [""]
                
     def settings_model_install_after(self):
         """
@@ -1053,19 +1052,6 @@ class OllamaOnDemandUI:
                 gr.update(interactive=True),                                                # Model install tag list
                 gr.update(interactive=True),                                                # Model install button
                 gr.update(interactive=True)]                                                # Model remove button
-                    
-    def raise_error(self, error):
-        """
-        Raise an error message
-        
-        Input:
-            error:              Error message
-        Output: 
-            None
-        """
-        
-        if error:
-            raise gr.Error(error)
         
     
     #------------------------------------------------------------------
@@ -1607,8 +1593,6 @@ class OllamaOnDemandUI:
             None
         """
         
-        error=gr.State("")
-        
         event_handler(                                      # First disable components
             fn=lambda : [gr.update(interactive=False)]*8,
             inputs=[],
@@ -1626,7 +1610,6 @@ class OllamaOnDemandUI:
             fn=self.settings_model_path_change,
             inputs=[self.gr_rightbar.model_path_text],
             outputs=[
-                error,
                 self.gr_main.model_dropdown,
                 self.gr_rightbar.model_path_text,
                 self.gr_rightbar.model_path_save,
@@ -1636,10 +1619,6 @@ class OllamaOnDemandUI:
                 self.gr_rightbar.model_install_btn,
                 self.gr_rightbar.model_remove_btn
             ]
-        ).then(                                             # Then raise error if exists
-            fn=self.raise_error,
-            inputs=[error],
-            outputs=[]
         )
         
     def workflow_install_remove_model(self, event_handler, action):
@@ -1652,8 +1631,6 @@ class OllamaOnDemandUI:
         Output: 
             None
         """
-        
-        error = gr.State("")
         
         event_handler(                                      # First disable components
             fn=lambda : [gr.update(interactive=False)]*8,
@@ -1676,7 +1653,6 @@ class OllamaOnDemandUI:
                 gr.State(action)
             ],
             outputs=[
-                error,
                 self.gr_rightbar.model_install_status
             ]
         ).then(                                             # Then update disabled components
@@ -1692,10 +1668,6 @@ class OllamaOnDemandUI:
                 self.gr_rightbar.model_install_btn,
                 self.gr_rightbar.model_remove_btn
             ]
-        ).then(                                             # Then raise error if exists
-            fn=self.raise_error,
-            inputs=[error],
-            outputs=[]
         )
     
     def register_main(self):
