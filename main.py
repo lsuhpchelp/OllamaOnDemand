@@ -12,11 +12,16 @@ import requests
 import re
 import ollama
 from typing import Literal
-import gradio as gr
-from arg import get_args
 import chatsessions as cs
 import usersettings as us
 from humanize import naturalsize
+        
+# Set Gradio temp files directory before loading Gradio
+# (Fix an issue Gradio will create temp folders upon loading)
+from arg import get_args
+args = get_args()
+os.environ["GRADIO_TEMP_DIR"] = args.workdir + "/cache"
+import gradio as gr
 
 #======================================================================
 #                           Main UI class
@@ -85,9 +90,6 @@ class OllamaOnDemandUI:
         self.gr_rightbar = GradioComponents()       # Right sidebar
         self.gr_rightbar.settings_components = {}   # User settings: Setting components
         self.gr_rightbar.settings_defaults = {}     # User settings: Default checkbox
-        
-        # Setup Gradio temp files directory
-        os.environ["GRADIO_TEMP_DIR"] = self.args.workdir + "/cache"
         
         # Compile regular expression for think tag replacement for display
         self.think_tags = {
@@ -1871,7 +1873,7 @@ class OllamaOnDemandUI:
 
 def main():
     
-    app = OllamaOnDemandUI(get_args())
+    app = OllamaOnDemandUI(args)
     app.build_ui()
     app.launch()
 

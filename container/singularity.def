@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: ollama/ollama:0.11.10
+From: ollama/ollama:0.12.3
 
 
 ################################################################################
@@ -23,7 +23,7 @@ export PATH=/opt/miniforge3/bin:$PATH
 
 # Install packages
 apt update && \
-    apt install -y wget git && \
+    apt install -y wget git libreoffice && \
     apt clean
 
 # Install Miniforge (latest Python for latest Gradio version)
@@ -35,7 +35,7 @@ wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge
     . /opt/miniforge3/bin/activate
 
 # Install Gradio
-pip install gradio==5.45.0 ollama==0.5.3 humanize
+pip install gradio==5.47.2 ollama==0.6.0 humanize PyMuPDF
 
 # Clone Ollama OnDemand GitHub repo
 cd /opt && git clone https://github.com/lsuhpchelp/OllamaOnDemand
