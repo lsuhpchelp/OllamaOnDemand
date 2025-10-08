@@ -93,10 +93,8 @@ class OllamaOnDemandUI:
         
         # Compile regular expression for think tag replacement for display
         self.think_tags = {
-            "head_tag":     "<think&#x200B;&#x200C;&#x2060;>\n\n",
-            "tail_tag":     "\n\n</think&#x200B;&#x200C;&#x2060;>\n\n",
-            "head_html":    "<details open class='thinking'><summary><i><b>(Thinking...)</b></summary>\n\n",
-            "tail_html":    "\n\n(Done thinking...)</i></details><br>\n\n"
+            "head":    "<details open class='thinking'><summary><i><b>(Thinking...)</b></summary>\n\n",
+            "tail":    "\n\n(...Done thinking)</i></details><br>\n\n"
         }
 
     
@@ -315,24 +313,39 @@ class OllamaOnDemandUI:
             # Make a copy
             chat_tmp = chat.copy()
             
-            # Format thinking process
-            if chat_tmp["role"] == "assistant":
+            # Format assistant message 
+            if (chat_tmp["role"] == "assistant"):
             
-                chat_tmp["content"] = chat_tmp["content"].replace(self.think_tags["head_tag"], 
-                                                          self.think_tags["head_html"])
-                chat_tmp["content"] = chat_tmp["content"].replace(self.think_tags["tail_tag"], 
-                                                          self.think_tags["tail_html"])
+                # If "thinking" exists, add thinking process depending on the process
+                if (chat_tmp.get("thinking")):
+                    
+                    # If "content" exists, add both head and tail to "thinking" and attach to the beginning of "content"
+                    if (chat_tmp["content"]):
+                    
+                        chat_tmp["content"] = self.think_tags["head"] + \
+                                              chat_tmp["thinking"] + \
+                                              self.think_tags["tail"] + \
+                                              chat_tmp["content"]
+                    
+                    # If not (still thinking), add head to "thinking" and save it as "content"
+                    else:
+                    
+                        chat_tmp["content"] = self.think_tags["head"] + \
+                                              chat_tmp["thinking"]
             
-            # Format user uploaded images
-            elif (chat_tmp["role"] == "user" and chat_tmp.get("images")):
+            # Format user message
+            elif (chat_tmp["role"] == "user"):
             
-                # Append single image or gallery, depending on the number of images
-                if (len(chat_tmp["images"]) <= 1):
-                    chat_history.append({ "role": "user", "content": gr.Image(chat_tmp["images"][0]) })
-                elif (len(chat_tmp["images"]) >= 6):
-                    chat_history.append({ "role": "user", "content": gr.Gallery(chat_tmp["images"], columns=3) })
-                else:
-                    chat_history.append({ "role": "user", "content": gr.Gallery(chat_tmp["images"], columns=2) })
+                # Display user uploaded images
+                if (chat_tmp.get("images")):
+            
+                    # Append single image or gallery, depending on the number of images
+                    if (len(chat_tmp["images"]) <= 1):
+                        chat_history.append({ "role": "user", "content": gr.Image(chat_tmp["images"][0]) })
+                    elif (len(chat_tmp["images"]) >= 6):
+                        chat_history.append({ "role": "user", "content": gr.Gallery(chat_tmp["images"], columns=3) })
+                    else:
+                        chat_history.append({ "role": "user", "content": gr.Gallery(chat_tmp["images"], columns=2) })
                 
             # Append message
             chat_history.append(chat_tmp)
@@ -439,8 +452,7 @@ class OllamaOnDemandUI:
             try:
             
                 # Reset thinking flag
-                is_thinking = False     # Or "S" (switchable thinking), "B" (Built-in thinking)
-                token_count = 0
+                is_thinking = False
 
                 # Stream results in chunks while not interrupted
                 for chunk in response:
@@ -449,37 +461,42 @@ class OllamaOnDemandUI:
                     if not self.is_streaming:
                         break
                     
-                    # Add chunk and thinking tag if needed
-                    if (not is_thinking and chunk.message.thinking):
-                        # Switchable thinking mode: begin
-                        #   - When is_thinking was False but thinking attribute is not empty
-                        #   - Set is_thinking to "S" (switchable thinking)
-                        self.chat_history[-1]["content"] += self.think_tags["head_tag"] + chunk.message.thinking
-                        is_thinking = "S"
-                    elif (is_thinking == "S" and chunk.message.thinking == None):
-                        # Switchable thinking mode: end
-                        #   - When is_thinking was "S" (switchable), but thinking attribute is now None
-                        #   - Set is_thinking to False (not thinking)
-                        self.chat_history[-1]["content"] += self.think_tags["tail_tag"] + chunk.message.content
-                        is_thinking = False
-                    elif (token_count == 0 and chunk.message.content == "<think>"):
-                        # Built-in thinking (e.g., DeepSeek-R1): begin
-                        #   - When this token is the first token and is "<think>"
-                        #   - Set is_thinking to "B" (built-in thinking)
-                        self.chat_history[-1]["content"] += self.think_tags["head_tag"]
-                        is_thinking = "B"
-                    elif (is_thinking == "B" and chunk.message.content == "</think>"):
-                        # Built-in thinking (e.g., DeepSeek-R1): end
-                        #   - When is_thinking was True (set for built-in thinking) but this token is "</think>"
-                        #   - Set is_thinking to False (not thinking)
-                        self.chat_history[-1]["content"] += self.think_tags["tail_tag"]
-                        is_thinking = False
-                    else:
-                        # None of above: normal chunk
-                        self.chat_history[-1]["content"] += chunk.message.content or chunk.message.thinking or ""
+                    # Handle reasoning
                     
-                    # Token count ++
-                    token_count += 1
+                    # If "thinking" attribute is not empty, always put it in "thinking"
+                    if (chunk.message.thinking):
+                    
+                        self.chat_history[-1]["thinking"] += chunk.message.thinking
+                        
+                    # Otherwise, check "content" attribute
+                    else:
+                    
+                        # If "is_thinking" is on
+                        if (is_thinking):
+                        
+                            # Append "content" to "thinking"
+                            self.chat_history[-1]["thinking"] += chunk.message.content or ""
+                            
+                            # If "thinking" ends with "</think>", turn off "is_thinking".
+                            #   Following chunks will be added to "content"
+                            if (self.chat_history[-1]["thinking"].rstrip()[-8:] == "</think>"):
+                            
+                                is_thinking = False
+                                self.chat_history[-1]["thinking"] = self.chat_history[-1]["thinking"].rstrip()[:-8]
+                            
+                        # If "is_thinking" is off
+                        else:
+                        
+                            # Append "content" to "content"
+                            self.chat_history[-1]["content"] += chunk.message.content or ""
+                            
+                            # If "content" starts with "<think>", turn on "is_thinking" and move "content" to "thinking". 
+                            #   Following chunks will be added to "thinking"
+                            if (self.chat_history[-1]["content"].lstrip()[:7] == "<think>"):
+                            
+                                is_thinking = True
+                                self.chat_history[-1]["thinking"] = self.chat_history[-1]["content"].lstrip()[7:]
+                                self.chat_history[-1]["content"] = ""
                     
                     # Yield results
                     #yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
@@ -494,6 +511,10 @@ class OllamaOnDemandUI:
         
         # Once finished, set streaming to False
         self.is_streaming = False
+        
+        # If assistant's response does not contain "thinking", delete the attribute
+        if (not self.chat_history[-1]["thinking"]):
+            del self.chat_history[-1]["thinking"]
         
         # Final update components
         yield self.chat_history_format(), gr.update(value="", submit_btn=True, stop_btn=False)
@@ -541,7 +562,7 @@ class OllamaOnDemandUI:
             
         # Append user message to history
         self.chat_history.append(user_message)
-        self.chat_history.append({"role": "assistant", "content": ""})
+        self.chat_history.append({"role": "assistant", "content": "", "thinking": ""})
             
         # Set streaming to True
         self.is_streaming = True
@@ -569,7 +590,7 @@ class OllamaOnDemandUI:
         
         # Revert to previous user message
         self.chat_history[:] = self.chat_history[:index+1]
-        self.chat_history.append({"role": "assistant", "content": ""})
+        self.chat_history.append({"role": "assistant", "content": "", "thinking": ""})
             
         # Set to streaming and continue
         self.is_streaming = True
@@ -598,7 +619,7 @@ class OllamaOnDemandUI:
         # Revert to editted user message
         self.chat_history[:] = self.chat_history[:index+1]
         self.chat_history[-1]["content"] = edit_data.value
-        self.chat_history.append({"role": "assistant", "content": ""})
+        self.chat_history.append({"role": "assistant", "content": "", "thinking": ""})
             
         # Set to streaming and continue
         self.is_streaming = True
@@ -927,17 +948,24 @@ class OllamaOnDemandUI:
         if (error):
             gr.Warning(error, title="Error")
         
+        # Get model install name and tag lists
+        choices_names = self.generate_settings_model_name_choices()
+        choices_tags = self.generate_settings_model_tag_choices(choices_names[0][1])
+        is_installed = choices_names[0][1]+":"+choices_tags[0][1] in self.models
+        
         # Return
         return [gr.update(choices=self.list_installed_models(formatted=True), value=self.models[0], interactive=True),     # Model selector
                 gr.update(value=self.settings["ollama_models"], interactive=True),          # Model path textbox
                 gr.update(interactive=True),                                                # Model path save button
                 gr.update(interactive=True),                                                # Model path reset button
-                gr.update(choices=self.generate_settings_model_name_choices(), 
-                          value=self.generate_settings_model_name_choices()[0][1], 
+                gr.update(choices=choices_names, value=choices_names[0][1], 
                           interactive=self.gr_rightbar.is_model_path_writable),             # Model install name list
-                gr.update(interactive=self.gr_rightbar.is_model_path_writable),             # Model install tag list
-                gr.update(interactive=self.gr_rightbar.is_model_path_writable),             # Model install button
-                gr.update(interactive=self.gr_rightbar.is_model_path_writable)]             # Model remove button
+                gr.update(choices=choices_tags, value=choices_tags[0][1], 
+                          interactive=self.gr_rightbar.is_model_path_writable),             # Model install tag list
+                gr.update(visible=not is_installed, 
+                          interactive=self.gr_rightbar.is_model_path_writable),             # Model install button
+                gr.update(visible=is_installed,
+                          interactive=self.gr_rightbar.is_model_path_writable)]             # Model remove button
                 
     def settings_update_model_tags(self, name):
         """
@@ -1003,7 +1031,7 @@ class OllamaOnDemandUI:
                         status += " ( **{:.0%}** )".format(completed / progress.get("total"))
                     
                     # Yield progress
-                    yield [status]
+                    yield status
                     
             elif (action == "remove"):
             
@@ -1012,7 +1040,7 @@ class OllamaOnDemandUI:
                 
             else:
             
-                gr.Warning("Invalid action!", label="Error")
+                gr.Warning("Invalid action!", title="Error")
             
             # Update model list
             self.models = self.list_installed_models()
@@ -1023,10 +1051,10 @@ class OllamaOnDemandUI:
         except Exception as e:
             
             # Raise error
-            gr.Warning(str(e), label="Error")
+            gr.Warning(str(e), title="Error")
                 
         # Return
-        yield [""]
+        yield ""
                
     def settings_model_install_after(self):
         """
@@ -1040,6 +1068,11 @@ class OllamaOnDemandUI:
             gr.update * 2:      Updates to model path buttons
             gr.update * 4:      Updates to model installation components
         """
+        
+        # Get model install name and tag lists
+        choices_names = self.generate_settings_model_name_choices()
+        choices_tags = self.generate_settings_model_tag_choices(choices_names[0][1])
+        is_installed = choices_names[0][1]+":"+choices_tags[0][1] in self.models
                 
         # Return
         return [gr.update(choices=self.list_installed_models(formatted=True), \
@@ -1048,12 +1081,14 @@ class OllamaOnDemandUI:
                 gr.update(interactive=True),                                                # Model path textbox
                 gr.update(interactive=True),                                                # Model path save button
                 gr.update(interactive=True),                                                # Model path reset button
-                gr.update(choices=self.generate_settings_model_name_choices(), 
-                          value=self.generate_settings_model_name_choices()[0][1], 
-                          interactive=True),                                                # Model install name list
-                gr.update(interactive=True),                                                # Model install tag list
-                gr.update(interactive=True),                                                # Model install button
-                gr.update(interactive=True)]                                                # Model remove button
+                gr.update(choices=choices_names, value=choices_names[0][1], 
+                          interactive=self.gr_rightbar.is_model_path_writable),             # Model install name list
+                gr.update(choices=choices_tags, value=choices_tags[0][1], 
+                          interactive=self.gr_rightbar.is_model_path_writable),             # Model install tag list
+                gr.update(visible=not is_installed, 
+                          interactive=self.gr_rightbar.is_model_path_writable),             # Model install button
+                gr.update(visible=is_installed,
+                          interactive=self.gr_rightbar.is_model_path_writable)]             # Model remove button
         
     
     #------------------------------------------------------------------
@@ -1654,9 +1689,7 @@ class OllamaOnDemandUI:
                 self.gr_rightbar.model_install_tags,
                 gr.State(action)
             ],
-            outputs=[
-                self.gr_rightbar.model_install_status
-            ]
+            outputs=[self.gr_rightbar.model_install_status]
         ).then(                                             # Then update disabled components
             fn=self.settings_model_install_after,
             inputs=[],
@@ -1837,11 +1870,11 @@ class OllamaOnDemandUI:
         )
         
         # Change install model name
-        self.gr_rightbar.model_install_names.change(
+        self.gr_rightbar.model_install_names.change(            # Force update when system trigger change
             fn=self.settings_update_model_tags,
             inputs=[self.gr_rightbar.model_install_names],
             outputs=[self.gr_rightbar.model_install_tags]
-        ).then(                                                 # Force update when system trigger change
+        ).then(
             fn=self.settings_update_model_buttons,
             inputs=[self.gr_rightbar.model_install_names,
                     self.gr_rightbar.model_install_tags],
