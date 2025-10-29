@@ -145,6 +145,12 @@ footer {
   }
 }
 
+/* Thinking block style */
+.thinking-block {
+    border: 1px solid var(--border-color-primary); 
+    padding: 15px !important; 
+    opacity: 0.6;
+}
 
 /* =================================================================
     Left sidebar: Chat sessions

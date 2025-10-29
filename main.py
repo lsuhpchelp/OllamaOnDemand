@@ -93,8 +93,8 @@ class OllamaOnDemandUI:
         
         # Compile regular expression for think tag replacement for display
         self.think_tags = {
-            "head":    "<details open class='thinking'><summary><i><b>(Thinking...)</b></summary>\n\n",
-            "tail":    "\n\n(...Done thinking)</i></details><br>\n\n"
+            "head":    "<div class='thinking-block'><details open class='thinking'><summary><i><b>(Thinking...)</b></summary>\n\n<br>",
+            "tail":    "</i></details></div><br>\n\n"
         }
 
     
