@@ -319,19 +319,10 @@ class OllamaOnDemandUI:
                 # If "thinking" exists, add thinking process depending on the process
                 if (chat_tmp.get("thinking")):
                     
-                    # If "content" exists, add both head and tail to "thinking" and attach to the beginning of "content"
-                    if (chat_tmp["content"]):
-                    
-                        chat_tmp["content"] = self.think_tags["head"] + \
-                                              chat_tmp["thinking"] + \
-                                              self.think_tags["tail"] + \
-                                              chat_tmp["content"]
-                    
-                    # If not (still thinking), add head to "thinking" and save it as "content"
-                    else:
-                    
-                        chat_tmp["content"] = self.think_tags["head"] + \
-                                              chat_tmp["thinking"]
+                    chat_tmp["content"] = self.think_tags["head"] + \
+                                          chat_tmp["thinking"] + \
+                                          self.think_tags["tail"] + \
+                                          chat_tmp["content"]
             
             # Format user message
             elif (chat_tmp["role"] == "user"):
@@ -346,6 +337,13 @@ class OllamaOnDemandUI:
                         chat_history.append({ "role": "user", "content": gr.Gallery(chat_tmp["images"], columns=3) })
                     else:
                         chat_history.append({ "role": "user", "content": gr.Gallery(chat_tmp["images"], columns=2) })
+            
+                # Display user uploaded files (contains at least one non-image)
+                elif (chat_tmp.get("files")):
+            
+                    # Append each file as a separated message
+                    for file in chat_tmp["files"]:
+                        chat_history.append({ "role": "user", "content": gr.File(file) })
                 
             # Append message
             chat_history.append(chat_tmp)
@@ -586,6 +584,8 @@ class OllamaOnDemandUI:
         while (i <= index):
             if (self.chat_history[i].get("images")):
                 index -= 1
+            elif (self.chat_history[i].get("files")):
+                index -= len(self.chat_history[i]["files"])
             i += 1
         
         # Revert to previous user message
@@ -614,6 +614,8 @@ class OllamaOnDemandUI:
         while (i <= index):
             if (self.chat_history[i].get("images")):
                 index -= 1
+            elif (self.chat_history[i].get("files")):
+                index -= len(self.chat_history[i]["files"])
             i += 1
         
         # Revert to editted user message
