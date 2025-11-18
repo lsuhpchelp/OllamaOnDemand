@@ -14,6 +14,7 @@ import ollama
 from typing import Literal
 import chatsessions as cs
 import usersettings as us
+import multimodal as mm
 from humanize import naturalsize
         
 # Set Gradio temp files directory before loading Gradio
@@ -294,9 +295,42 @@ class OllamaOnDemandUI:
             # Get chat title
             self.chat_title = cs.get_chat_title(chat_index)
                     
-    def chat_history_format(self):
+    def chat_history_stream(self):
         """
-        Format chat_history into a more clean HTML
+        Format chat_history list into an Ollama processable format, particularly for multimodal attachments.
+        
+        Input:
+            None
+        Output: 
+            chat_history:   Formatted chat history
+        """
+        
+        # Make a copy of the chat history
+        chat_history = []
+        
+        # Loop and replace
+        for chat in self.chat_history:
+            
+            # Make a copy
+            chat_tmp = chat.copy()
+            
+            # Format user message
+            if (chat_tmp["role"] == "user"):
+            
+                # Process user uploaded files
+                if (chat_tmp.get("files")):
+            
+                    # Loop through each file, 
+                    mm.format_chat(chat_tmp, is_streaming=True)
+                
+            # Append message
+            chat_history.append(chat_tmp)
+            
+        return(chat_history)
+                    
+    def chat_history_display(self):
+        """
+        Format chat_history list into a more clean HTML for display.
         
         Input:
             None
@@ -347,8 +381,7 @@ class OllamaOnDemandUI:
                 
             # Append message
             chat_history.append(chat_tmp)
-                                                          
-        
+                                        
         return(chat_history)
         
     def save_chat_history(self):
@@ -439,7 +472,7 @@ class OllamaOnDemandUI:
             # Generate next chat results
             response = self.client.chat(
                 model = self.settings["model_selected"],
-                messages = self.chat_history,
+                messages = self.chat_history_stream(),      # Using formatted chat history for streaming
                 stream = True,
                 think = think,
                 keep_alive = keep_alive,
@@ -498,14 +531,14 @@ class OllamaOnDemandUI:
                     
                     # Yield results
                     #yield self.chat_history, gr.update(value="", submit_btn=False, stop_btn=True)
-                    yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
+                    yield self.chat_history_display(), gr.update(value="", submit_btn=False, stop_btn=True)
             
             # If error occurs
             except Exception as error: 
                 
                 self.chat_history[-1]["content"] = "[Error] An error has occured! Please see error message and and try again!"
                 gr.Warning(str(error), title="Error")
-                yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
+                yield self.chat_history_display(), gr.update(value="", submit_btn=False, stop_btn=True)
         
         # Once finished, set streaming to False
         self.is_streaming = False
@@ -515,7 +548,7 @@ class OllamaOnDemandUI:
             del self.chat_history[-1]["thinking"]
         
         # Final update components
-        yield self.chat_history_format(), gr.update(value="", submit_btn=True, stop_btn=False)
+        yield self.chat_history_display(), gr.update(value="", submit_btn=True, stop_btn=False)
     
     def stop_stream_chat(self):
         """
@@ -532,7 +565,7 @@ class OllamaOnDemandUI:
         self.is_streaming = False
         
         # Update components
-        yield self.chat_history_format(), gr.update(value="", submit_btn=True, stop_btn=False)
+        yield self.chat_history_display(), gr.update(value="", submit_btn=True, stop_btn=False)
     
     def new_message(self, user_input):
         """
@@ -546,12 +579,20 @@ class OllamaOnDemandUI:
         """
         
         # Create user message
+        # If attachments exist (multimodal)
         if len(user_input["files"]) > 0:
+            
+            # If any non-image is uploaded, process them first
             user_message = {
                 "role":     "user", 
                 "content":  user_input["text"],
-                "images":   user_input["files"]
+                "files":    user_input["files"]
             }
+            
+            # Process the attachments for any non-image
+            mm.format_chat(user_message, is_streaming=False)
+            
+        # No attachment
         else:
             user_message = {
                 "role":     "user", 
@@ -566,7 +607,7 @@ class OllamaOnDemandUI:
         self.is_streaming = True
         
         # Update components
-        yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
+        yield self.chat_history_display(), gr.update(value="", submit_btn=False, stop_btn=True)
     
     def retry(self, retry_data: gr.RetryData):
         """
@@ -596,7 +637,7 @@ class OllamaOnDemandUI:
         self.is_streaming = True
         
         # Update components
-        yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
+        yield self.chat_history_display(), gr.update(value="", submit_btn=False, stop_btn=True)
     
     def edit(self, edit_data: gr.EditData):
         """
@@ -627,7 +668,7 @@ class OllamaOnDemandUI:
         self.is_streaming = True
         
         # Update components
-        yield self.chat_history_format(), gr.update(value="", submit_btn=False, stop_btn=True)
+        yield self.chat_history_display(), gr.update(value="", submit_btn=False, stop_btn=True)
         
     def update_chat_selector(self):
         """
@@ -674,7 +715,7 @@ class OllamaOnDemandUI:
         self.update_current_chat(index)
         
         # Return chat history to chatbot
-        return self.chat_history_format()
+        return self.chat_history_display()
         
     def new_chat(self):
         """
@@ -748,13 +789,13 @@ class OllamaOnDemandUI:
         
             self.chat_index -= 1
             self.update_current_chat(self.chat_index)
-            return gr.update(value=self.generate_chat_selector()), self.chat_history_format()
+            return gr.update(value=self.generate_chat_selector()), self.chat_history_display()
             
         # Otherwise, keep current chat index and reload
         else:
         
             self.update_current_chat(self.chat_index)
-            return gr.update(value=self.generate_chat_selector()), self.chat_history_format()
+            return gr.update(value=self.generate_chat_selector()), self.chat_history_display()
     
     def select_model(self, model_selected):
         """
@@ -1325,10 +1366,10 @@ class OllamaOnDemandUI:
                 submit_btn=True,
                 stop_btn=False,
                 show_label=False,
-                file_types=["image"],
+                file_types=["image", "text"],
                 file_count="multiple",
                 max_lines=10,
-                max_plain_text_length=20000,
+                max_plain_text_length=10000,
                 elem_id="gr-user-input"
             )
     
@@ -1531,7 +1572,7 @@ class OllamaOnDemandUI:
             
             # Load UI
             self.demo.load(
-                fn=lambda : self.chat_history_format(),
+                fn=lambda : self.chat_history_display(),
                 inputs=[],
                 outputs=[self.gr_main.chatbot]
             ).then(
