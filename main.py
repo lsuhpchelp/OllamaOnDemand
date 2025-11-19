@@ -1366,7 +1366,7 @@ class OllamaOnDemandUI:
                 submit_btn=True,
                 stop_btn=False,
                 show_label=False,
-                file_types=["image", "text"],
+                file_types=["image", "text"] + list(mm.filetypes.keys()),
                 file_count="multiple",
                 max_lines=10,
                 max_plain_text_length=10000,

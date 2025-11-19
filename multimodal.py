@@ -1,7 +1,9 @@
 # Process multimodal attachments for chat messages
 
 import os
+import pathlib
 import gradio as gr
+import pymupdf
 from binaryornot.check import is_binary
 
 #======================================================================
@@ -97,6 +99,46 @@ Content:
         except:
             
             gr.Warning("Opening file failed! Please try again!", title="Error")
+    
+def mm_pdf(chat, path, is_streaming=True):
+    """
+    Process a pdf file.
+    
+    Input:
+        chat:           An OpenAI style chat message dictionary (also serve as output)
+        path:           File path
+        is_streaming:   True (formatting chat message for streaming) or False (formatting chat message for uploading)
+    Output:
+            None
+    """
+    
+    # Convert .pdf to what image format
+    ext = ".png"
+    
+    # If formatting for streaming, add the converted images to "images" list
+    if (is_streaming):
+        
+        directory = pathlib.Path(os.path.split(path)[0])
+        images = directory.glob(f"*{ext}")
+        chat["images"] += sorted([str(file.resolve()) for file in images])
+        
+    # if not streaming (uploading), convert the .pdf file to images and store in the same directory
+    else:
+        
+        try:
+            
+            pdf = pymupdf.open(path)
+            
+            i = 0
+            for page in pdf:
+                image_path = path + f".{i:04d}{ext}"
+                image = page.get_pixmap(dpi=300)
+                image.save(image_path)
+                i += 1
+            
+        except:
+            
+            gr.Warning("Fail to process PDF file! Please try again later!", title="Error")
 
 
 #======================================================================
@@ -111,5 +153,5 @@ Content:
 #           path:           File path
 #           is_streaming:   True (formatting chat message for streaming) or False (formatting chat message for uploading)
 filetypes = {
-
+    ".pdf":     mm_pdf
 }
