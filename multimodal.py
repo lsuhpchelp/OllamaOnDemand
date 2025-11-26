@@ -20,44 +20,50 @@ def format_chat(chat, is_streaming=True):
     Output: 
         None
     """
+    
+    # Create a temporary chat message for return
+    chat_tmp = chat.copy()
+    
+    # Proceed if "files" key exists
+    if (chat_tmp.get("files")):
         
-    # Create "image" list
-    chat["images"] = []
-        
-    # Loop over all uploaded files
-    for file in chat["files"]:
-        
-        # Get extension
-        ext = os.path.splitext(file)[1]
-        
-        # If extension is listed below, process accordingly
-        if ext in filetypes.keys():
+        # Loop over all uploaded files
+        for file in chat_tmp["files"]:
             
-            filetypes[ext](chat, file, is_streaming)
-        
-        # If not listed
-        else:
+            # Get extension
+            ext = os.path.splitext(file)[1].lower()
             
-            # If the file is not binary (a text), process as text file
-            if (not is_binary(file)):
+            # If extension is listed below, process accordingly
+            if ext in filetypes.keys():
                 
-                mm_text(chat, file, is_streaming)
+                filetypes[ext](chat_tmp, file, is_streaming)
             
-            # Otherwise, it is an image, and just copy to "image" list
+            # If not listed
             else:
+                
+                # If the file is not binary (a text), process as text file
+                if (not is_binary(file)):
+                    
+                    mm_text(chat_tmp, file, is_streaming)
+                
+                # Otherwise, it is an image, and just copy to "image" list
+                else:
+                
+                    mm_image(chat_tmp, file, is_streaming)
+        
+        # If "images" is the same as "files" (all attachments are images):
+        #   - Delete "files" (store as pure images)
+        # If not:
+        #   - Delete "images" if only when uploading (not streaming)
+        if (chat_tmp.get("images")):
+            if (chat_tmp["images"] == chat_tmp["files"]):
+                del chat_tmp["files"]
+            else:
+                if (not is_streaming):
+                    del chat_tmp["images"]
             
-                chat["images"].append(file)
-            
-        
-    # Delete "image" key if it is empty after processing (e.g., only ".txt" files are found)
-    if (not chat["images"]):
-        
-        del chat["images"]
-        
-    # Delete "files" key if "files" is the same as "images" (i.e., all attachments are images)
-    elif (chat["images"] == chat["files"]):
-        
-        del chat["files"]
+    # Return result as a list
+    return([chat_tmp])
     
 def mm_text(chat, path, is_streaming=True):
     """
@@ -100,6 +106,27 @@ Content:
             
             gr.Warning("Opening file failed! Please try again!", title="Error")
     
+def mm_image(chat, path, is_streaming=True):
+    """
+    Process an image file.
+    
+    Input:
+        chat:           An OpenAI style chat message dictionary (also serve as output)
+        path:           File path
+        is_streaming:   True (formatting chat message for streaming) or False (formatting chat message for uploading)
+    Output:
+            None
+    """
+    
+    # Append file path to chat["images"]
+    if (chat.get("images")):
+        
+        chat["images"].append(file)
+    
+    else:
+    
+        chat["images"] = [file]
+    
 def mm_pdf(chat, path, is_streaming=True):
     """
     Process a pdf file.
@@ -120,7 +147,11 @@ def mm_pdf(chat, path, is_streaming=True):
         
         directory = pathlib.Path(os.path.split(path)[0])
         images = directory.glob(f"*{ext}")
-        chat["images"] += sorted([str(file.resolve()) for file in images])
+        
+        if (chat.get("images")):
+            chat["images"] += sorted([str(file.resolve()) for file in images])
+        else:
+            chat["images"] = sorted([str(file.resolve()) for file in images])
         
     # if not streaming (uploading), convert the .pdf file to images and store in the same directory
     else:

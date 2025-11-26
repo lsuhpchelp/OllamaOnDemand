@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: ollama/ollama:0.12.6
+From: ollama/ollama:0.12.11
 
 
 ################################################################################
@@ -16,6 +16,13 @@ Description     Ollama OnDemand official Singularity recipe
 ################################################################################
 
 export PATH=/opt/miniforge3/bin:$PATH
+
+
+################################################################################
+%files
+################################################################################
+
+../* /opt/OllamaOnDemand/
 
 ################################################################################
 %post
@@ -35,10 +42,10 @@ wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge
     . /opt/miniforge3/bin/activate
 
 # Install Gradio
-pip install gradio==5.49.1 ollama==0.6.0 humanize PyMuPDF binaryornot
+pip install gradio==5.49.1 ollama==0.6.1 humanize PyMuPDF binaryornot
 
 # Clone Ollama OnDemand GitHub repo
-cd /opt && git clone https://github.com/lsuhpchelp/OllamaOnDemand
+#cd /opt && git clone https://github.com/lsuhpchelp/OllamaOnDemand
 
 ################################################################################
 %runscript

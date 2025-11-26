@@ -311,21 +311,15 @@ class OllamaOnDemandUI:
         # Loop and replace
         for chat in self.chat_history:
             
-            # Make a copy
-            chat_tmp = chat.copy()
-            
             # Format user message
-            if (chat_tmp["role"] == "user"):
+            if (chat["role"] == "user"):
             
-                # Process user uploaded files
-                if (chat_tmp.get("files")):
+                chat_history += mm.format_chat(chat, is_streaming=True)
             
-                    # Loop through each file, 
-                    mm.format_chat(chat_tmp, is_streaming=True)
+            else:
                 
-            # Append message
-            chat_history.append(chat_tmp)
-            
+                chat_history.append(chat)
+        
         return(chat_history)
                     
     def chat_history_display(self):
@@ -590,7 +584,7 @@ class OllamaOnDemandUI:
             }
             
             # Process the attachments for any non-image
-            mm.format_chat(user_message, is_streaming=False)
+            user_message, = mm.format_chat(user_message, is_streaming=False)
             
         # No attachment
         else:
