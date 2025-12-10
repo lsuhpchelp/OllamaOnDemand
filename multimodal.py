@@ -6,25 +6,26 @@ import gradio as gr
 import pymupdf
 from binaryornot.check import is_binary
 
+DEFAULT_CONVERT_IMAGE_FORMAT = ".png"
+
 #======================================================================
-#                            Functions 
+#                            Call Functions 
 #======================================================================
 
-def format_chat(chat, is_streaming=True):
+def format_chat_stream(chat):
     """
-    Process multimodal attachment for a single chat message.
+    Process multimodal attachment for a single chat message. For streaming with Ollama server.
     
     Input:
-        chat:           An OpenAI style chat message dictionary (also serve as output)
-        is_streaming:   True (formatting chat message for streaming) or False (formatting chat message for uploading)
+        chat:           An OpenAI style chat message dictionary
     Output: 
-        None
+        [chat,...]:     A list of chat messages (possibly more than one, as pure text will be submitted as separated messages)
     """
     
     # Create a temporary chat message for return
     chat_tmp = chat.copy()
     
-    # Proceed if "files" key exists
+    # Proceed only if "files" key exists
     if (chat_tmp.get("files")):
         
         # Loop over all uploaded files
@@ -33,10 +34,13 @@ def format_chat(chat, is_streaming=True):
             # Get extension
             ext = os.path.splitext(file)[1].lower()
             
-            # If extension is listed below, process accordingly
-            if ext in filetypes.keys():
+            # If extension is explicitly listed, process with indicated handler
+            if (ext in filetypes.keys()):
                 
-                filetypes[ext](chat_tmp, file, is_streaming)
+                # Only process when handler exists
+                if (filetypes[ext].get("stream")):
+                
+                    filetypes[ext]["stream"](chat_tmp, file)
             
             # If not listed
             else:
@@ -44,132 +48,194 @@ def format_chat(chat, is_streaming=True):
                 # If the file is not binary (a text), process as text file
                 if (not is_binary(file)):
                     
-                    mm_text(chat_tmp, file, is_streaming)
+                    mm_text_stream(chat_tmp, file)
                 
-                # Otherwise, it is an image, and just copy to "image" list
+                # Otherwise, it is an image, process as an image
                 else:
                 
-                    mm_image(chat_tmp, file, is_streaming)
+                    mm_image(chat_tmp, file)
+    
+    # Prepare return values
+    res = [chat_tmp]
+    
+    # Expand content["txt"] if exists
+    if (chat_tmp.get("txt")):
         
-        # If "images" is the same as "files" (all attachments are images):
-        #   - Delete "files" (store as pure images)
-        # If not:
-        #   - Delete "images" if only when uploading (not streaming)
+        for txt_msg in chat_tmp["txt"]:
+            
+            res.append({
+                "role":     "user", 
+                "content":  txt_msg
+            })
+            
+    # Return result as a list
+    return(res)
+
+def format_chat_upload(chat):
+    """
+    Process multimodal attachment for a single chat message. For upload.
+    
+    Input:
+        chat:           An OpenAI style chat message dictionary
+    Output: 
+        chat:           An OpenAI style chat message dictionary (formatted for upload)
+    """
+    
+    # Create a temporary chat message for return
+    chat_tmp = chat.copy()
+    
+    # Proceed only if "files" key exists
+    if (chat_tmp.get("files")):
+        
+        # Loop over all uploaded files
+        for file in chat_tmp["files"]:
+            
+            # Get extension
+            ext = os.path.splitext(file)[1].lower()
+            
+            # If extension is explicitly listed, process with indicated handler
+            if (ext in filetypes.keys()):
+                
+                # Only process when handler exists
+                if (filetypes[ext].get("upload")):
+                
+                    filetypes[ext]["upload"](chat_tmp, file)
+            
+            # If not listed
+            else:
+                
+                # If the file is binary (an image), process as an image
+                if (is_binary(file)):
+                
+                    mm_image(chat_tmp, file)
+        
+        # "images" and "files", only keep one
+        # Delete "files" if it is the same as "images" (only image files are uploaded); otherwise, delete "images"
         if (chat_tmp.get("images")):
             if (chat_tmp["images"] == chat_tmp["files"]):
                 del chat_tmp["files"]
             else:
-                if (not is_streaming):
-                    del chat_tmp["images"]
+                del chat_tmp["images"]
             
     # Return result as a list
-    return([chat_tmp])
+    return(chat_tmp)
+
+
+#======================================================================
+#                            File Handlers
+#======================================================================
     
-def mm_text(chat, path, is_streaming=True):
+def mm_text_stream(chat, path):
     """
-    Process a text file.
+    Process a text file. For streaming with Ollama server.
     
     Input:
         chat:           An OpenAI style chat message dictionary (also serve as output)
         path:           File path
-        is_streaming:   True (formatting chat message for streaming) or False (formatting chat message for uploading)
     Output:
-            None
+        None
     """
     
-    # If formatting for streaming, attach the file to the end of user message
-    if (is_streaming):
+    try:
+    
+        # Get file name
+        name = os.path.split(path)[1]
         
-        try:
-        
-            # Get file name
-            name = os.path.split(path)[1]
+        # Get content
+        with open(path, "r") as f:
+            content = f.read()
             
-            # Get content
-            with open(path, "r") as f:
-                content = f.read()
-            
-            # Attach to the end of user message
-            chat["content"] += f"""
-            
----
-
+        # Create message
+        txt_msg = f"""
 File name: [{name}]
 
 Content:
 
 {content}
 
-            """
+        """
+        
+        # Append message to content["txt"] list (create this list if it does not exist)
+        # This list will be processed in the end to create separated user messages.
+        if (chat.get("txt")):
             
-        except:
+            chat["txt"].append(txt_msg)
             
-            gr.Warning("Opening file failed! Please try again!", title="Error")
+        else:
+            
+            chat["txt"] = [txt_msg]
+        
+    except:
+        
+        gr.Warning("Opening file failed! Please try again!", title="Error")
     
-def mm_image(chat, path, is_streaming=True):
+def mm_image(chat, path):
     """
-    Process an image file.
+    Process an image file. For both streaming and upload.
     
     Input:
         chat:           An OpenAI style chat message dictionary (also serve as output)
         path:           File path
-        is_streaming:   True (formatting chat message for streaming) or False (formatting chat message for uploading)
     Output:
-            None
+        None
     """
     
     # Append file path to chat["images"]
     if (chat.get("images")):
         
-        chat["images"].append(file)
+        chat["images"].append(path)
     
     else:
     
-        chat["images"] = [file]
+        chat["images"] = [path]
     
-def mm_pdf(chat, path, is_streaming=True):
+def mm_pdf_stream(chat, path):
     """
-    Process a pdf file.
+    Process a pdf file. For streaming with Ollama server.
     
     Input:
         chat:           An OpenAI style chat message dictionary (also serve as output)
         path:           File path
-        is_streaming:   True (formatting chat message for streaming) or False (formatting chat message for uploading)
     Output:
-            None
+        None
     """
     
-    # Convert .pdf to what image format
-    ext = ".png"
+    # Obtain all converted images during upload stage
+    directory = pathlib.Path(os.path.split(path)[0])
+    images = directory.glob(f"*{DEFAULT_CONVERT_IMAGE_FORMAT}")
     
-    # If formatting for streaming, add the converted images to "images" list
-    if (is_streaming):
-        
-        directory = pathlib.Path(os.path.split(path)[0])
-        images = directory.glob(f"*{ext}")
-        
-        if (chat.get("images")):
-            chat["images"] += sorted([str(file.resolve()) for file in images])
-        else:
-            chat["images"] = sorted([str(file.resolve()) for file in images])
-        
-    # if not streaming (uploading), convert the .pdf file to images and store in the same directory
+    # Attach images to chat["images"] (Create if it does not exist)
+    if (chat.get("images")):
+        chat["images"] += sorted([str(file.resolve()) for file in images])
     else:
+        chat["images"] = sorted([str(file.resolve()) for file in images])
+    
+def mm_pdf_upload(chat, path):
+    """
+    Process a pdf file. For upload.
+    
+    Input:
+        chat:           An OpenAI style chat message dictionary (also serve as output)
+        path:           File path
+    Output:
+        None
+    """
         
-        try:
-            
-            pdf = pymupdf.open(path)
-            
-            i = 0
-            for page in pdf:
-                image_path = path + f".{i:04d}{ext}"
-                image = page.get_pixmap(dpi=300)
-                image.save(image_path)
-                i += 1
-            
-        except:
-            
-            gr.Warning("Fail to process PDF file! Please try again later!", title="Error")
+    # Convert the .pdf file to images and store in the same directory
+    try:
+        
+        pdf = pymupdf.open(path)
+        
+        i = 0
+        for page in pdf:
+            image_path = path + f".{i:04d}{DEFAULT_CONVERT_IMAGE_FORMAT}"
+            image = page.get_pixmap(dpi=300)
+            image.save(image_path)
+            i += 1
+        
+    except:
+        
+        gr.Warning("Fail to process PDF file! Please try again later!", title="Error")
 
 
 #======================================================================
@@ -178,11 +244,14 @@ def mm_pdf(chat, path, is_streaming=True):
 
 # A dictionary of supported file types other than images
 #   Keys: A string of file extension name
-#   Vals: A function reference defining how to format chat message for each file type, which has:
+#   Vals: A dictionary of function reference defining how to format chat message for each file type, which has:
 #       Input:
 #           chat:           An OpenAI style chat message dictionary (also serve as output)
 #           path:           File path
 #           is_streaming:   True (formatting chat message for streaming) or False (formatting chat message for uploading)
 filetypes = {
-    ".pdf":     mm_pdf
+    ".pdf":     {
+        "stream":   mm_pdf_stream,
+        "upload":   mm_pdf_upload
+    }
 }

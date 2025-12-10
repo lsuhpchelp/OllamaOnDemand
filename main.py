@@ -314,7 +314,7 @@ class OllamaOnDemandUI:
             # Format user message
             if (chat["role"] == "user"):
             
-                chat_history += mm.format_chat(chat, is_streaming=True)
+                chat_history += mm.format_chat_stream(chat)
             
             else:
                 
@@ -584,7 +584,7 @@ class OllamaOnDemandUI:
             }
             
             # Process the attachments for any non-image
-            user_message, = mm.format_chat(user_message, is_streaming=False)
+            user_message = mm.format_chat_upload(user_message)
             
         # No attachment
         else:
