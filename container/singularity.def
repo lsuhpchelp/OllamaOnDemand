@@ -53,6 +53,10 @@ wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge
 # Install Gradio
 pip install gradio==5.49.1 ollama==0.6.1 humanize PyMuPDF binaryornot
 
+# Pull remote models at the time of creating the container
+cd /opt/OllamaOnDemand/
+python remotemodels.py
+
 # Clone Ollama OnDemand GitHub repo
 #cd /opt && git clone https://github.com/lsuhpchelp/OllamaOnDemand
 

@@ -15,6 +15,7 @@ from typing import Literal
 import chatsessions as cs
 import usersettings as us
 import multimodal as mm
+import remotemodels as rm
 from humanize import naturalsize
         
 # Set Gradio temp files directory before loading Gradio
@@ -219,31 +220,22 @@ class OllamaOnDemandUI:
             models:     Dictionary like {"model_name": ["tag1", "tag2", ...], ...}
         """
         
-        # Step 1: Fetch the HTML content from Ollama model search
-        #       This should only fetch officially maintained model, not user pushed
-        html = requests.get("https://ollama.com/search").text
-
-        # Step 2: Extract relevant lines
-        lines = [line for line in html.splitlines() if 'x-test-search-response-title' in line or 'x-test-size' in line]
-
-        # Step 3: Substitute the tag for title with "Model:"
-        lines = [line.replace("x-test-search-response-title>", "x-test-search-response-title>Model:") for line in lines]
-
-        # Step 4: Strip HTML tags and spaces
-        lines = [re.sub(r'<[^>]*>', '', line).replace(" ", "") for line in lines]
+        # First, attempt to load "remotemodels.json" in current path, which is supposed to be created upon creating the container
+        models = rm.load_model_list(self.current_path)
         
-        # Step 5: Return formatted dictionary
-        model_dict = {}
-        current_model = None
-        for line in lines:
-            if line.startswith("Model:"):
-                current_model = line[len("Model:"):]  # Strip "Model:" prefix
-                model_dict[current_model] = []
-            elif current_model:
-                model_dict[current_model].append(line)
-        
-        # Return results
-        return(model_dict)
+        # If failed (nothing is loaded), attempt to load from user's work directory (user generated)
+        if (not models):
+            
+            models = rm.load_model_list(self.args.workdir)
+            
+            # If still failed, pull from remote server, and save in user's work directory for future loading
+            if (not models):
+                
+                models = rm.dict_all_models()
+                
+                rm.save_model_list(self.args.workdir, rm.dict_all_models())
+                
+        return(models)
         
     def is_model_path(self, model_path):
         """
