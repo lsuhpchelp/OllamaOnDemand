@@ -70,10 +70,10 @@ def dict_page_models(page):
         lines = [line for line in html.splitlines() if "<a href" in line and "font-medium text-neutral-800" in line]
 
         # Strip HTML tags, spaces, and model names. Leave only the model tags.
-        # Also remove any tags contains "latest" (default) and "-cloud" (cloud models)
-        lines = [re.sub(r'<[^>]*>', '', line).replace(" ", "").replace(f"{model_name}:", "") 
-                    for line in lines 
-                        if not ":latest" in line and not "cloud" in line]
+        lines = [re.sub(r'<[^>]*>', '', line).replace(" ", "").replace(f"{model_name}:", "") for line in lines]
+
+        # Remove any tags contains "latest" (default) and "cloud" (cloud models)
+        lines = [line for line in lines if not "latest" in line and not "cloud" in line]
         
         # Add result to "models" dict if the result is not empty
         if (lines):
