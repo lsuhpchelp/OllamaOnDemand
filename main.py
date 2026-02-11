@@ -64,6 +64,9 @@ class OllamaOnDemandUI:
                                                     #   self.chat_title     - Current chat title
                                                     #   self.chat_history   - Current chat history
         
+        # Clean up orphaned cached files
+        self.cleanup_cache()
+        
         # User settings
         self.settings = self.load_settings()
         
@@ -166,6 +169,55 @@ class OllamaOnDemandUI:
     #------------------------------------------------------------------
     # Misc utilities
     #------------------------------------------------------------------
+    
+    def cleanup_cache(self):
+        """
+        Clean up orphaned files in the cache directory.
+        Each uploaded file is stored in a uniquely-hashed subfolder by Gradio.
+        This method reads the chat history file as plain text and checks whether
+        each subfolder name is referenced. If not, the entire subfolder is deleted.
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+        
+        import shutil
+        
+        cache_dir = self.args.workdir + "/cache"
+        
+        # Skip if cache directory does not exist
+        if not os.path.isdir(cache_dir):
+            return
+        
+        # Read chat history file as plain text
+        chat_file = os.path.join(self.args.workdir, "chats.json")
+        try:
+            with open(chat_file, "r", encoding="utf-8") as f:
+                chat_text = f.read()
+        except Exception:
+            return
+        
+        # Check each subfolder in cache directory
+        deleted_count = 0
+        for folder_name in os.listdir(cache_dir):
+            folder_path = os.path.join(cache_dir, folder_name)
+            
+            # Only process directories
+            if not os.path.isdir(folder_path):
+                continue
+            
+            # If the folder name is not referenced in chat history, delete it
+            if folder_name not in chat_text:
+                try:
+                    shutil.rmtree(folder_path)
+                    deleted_count += 1
+                except Exception:
+                    pass
+        
+        if deleted_count > 0:
+            print(f"Cache cleanup: removed {deleted_count} orphaned folder(s).")
     
     def list_installed_models(self, formatted=False):
         """
