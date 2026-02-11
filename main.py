@@ -10,6 +10,7 @@ import subprocess
 import time
 import requests
 import re
+import shutil
 import ollama
 from typing import Literal
 import chatsessions as cs
@@ -183,9 +184,7 @@ class OllamaOnDemandUI:
             None
         """
         
-        import shutil
-        
-        cache_dir = self.args.workdir + "/cache"
+        cache_dir = os.path.join(self.args.workdir, "cache")
         
         # Skip if cache directory does not exist
         if not os.path.isdir(cache_dir):
