@@ -8,7 +8,7 @@ import requests
 import json
 import subprocess
 import time
-import requests
+import html
 import re
 import shutil
 import ollama
@@ -284,7 +284,7 @@ class OllamaOnDemandUI:
                 
                 models = rm.dict_all_models()
                 
-                rm.save_model_list(self.args.workdir, rm.dict_all_models())
+                rm.save_model_list(self.args.workdir, models)
                 
         return(models)
         
@@ -301,10 +301,12 @@ class OllamaOnDemandUI:
             bool
         """
         
+        blobs_path = os.path.join(model_path, "blobs")
+        manifests_path = os.path.join(model_path, "manifests")
         return(os.access(model_path, os.R_OK) \
-                and os.access(model_path+"/blobs", os.R_OK) \
-                and os.access(model_path+"/manifests", os.R_OK) \
-                and len(os.listdir(model_path+"/manifests")) > 0)
+                and os.access(blobs_path, os.R_OK) \
+                and os.access(manifests_path, os.R_OK) \
+                and len(os.listdir(manifests_path)) > 0)
                     
     def update_current_chat(self, chat_index):
         """
@@ -573,7 +575,7 @@ class OllamaOnDemandUI:
             # If error occurs
             except Exception as error: 
                 
-                self.chat_history[-1]["content"] = "[Error] An error has occured! Please see error message and and try again!"
+                self.chat_history[-1]["content"] = "[Error] An error has occurred! Please see error message and and try again!"
                 gr.Warning(str(error), title="Error")
                 yield self.chat_history_display(), gr.update(value="", submit_btn=False, stop_btn=True)
         
@@ -696,7 +698,7 @@ class OllamaOnDemandUI:
                 index -= len(self.chat_history[i]["files"])
             i += 1
         
-        # Revert to editted user message
+        # Revert to edited user message
         self.chat_history[:] = self.chat_history[:index+1]
         self.chat_history[-1]["content"] = edit_data.value
         self.chat_history.append({"role": "assistant", "content": "", "thinking": ""})
@@ -962,7 +964,7 @@ class OllamaOnDemandUI:
             if (error):
                 
                 # Reset user settings
-                elf.settings["ollama_models"] = model_path_old
+                self.settings["ollama_models"] = model_path_old
                 
                 # Re-restart
                 self.server_process.kill()
@@ -999,7 +1001,7 @@ class OllamaOnDemandUI:
                 if (error):
                     
                     # Reset user settings
-                    elf.settings["ollama_models"] = model_path_old
+                    self.settings["ollama_models"] = model_path_old
                     
                     # Re-restart
                     self.server_process.kill()
@@ -1180,19 +1182,20 @@ class OllamaOnDemandUI:
         Build chat selector (HTML code)
         
         Input:
-            interactive:    Whether the code is responsive to events (Default: True)
+            interactive:            Whether the code is responsive to events (Default: True)
         Output: 
-            html:           Chat selector HTML code
+            html_chat_selector:     Chat selector HTML code
         """
         
         titles = cs.get_chat_titles()
-        html = ""
+        html_chat_selector = ""
         
         if interactive:
         
             for i, title in enumerate(titles):
                 active = "active-chat" if i == self.chat_index else ""
-                html += f"""
+                title = html.escape(title)
+                html_chat_selector += f"""
                 <div class='chat-entry {active}' onclick="select_chat_js({i})" id='chat-entry-{i}'>
                     <span class='chat-title' id='chat-title-{i}' title='{title}'>{title}</span>
                     <input class='chat-title-input custom-hidden' id='chat-title-input-{i}' autocomplete='off'
@@ -1212,7 +1215,8 @@ class OllamaOnDemandUI:
         else:
         
             for i, title in enumerate(titles):
-                html += f"""
+                title = html.escape(title)
+                html_chat_selector += f"""
                 <div class='chat-entry'>
                     <span class='chat-title' title='{title}'>{title}</span>
                     <button class='menu-btn'>⋯</button>
@@ -1224,7 +1228,7 @@ class OllamaOnDemandUI:
                 </div>
                 """
         
-        return html
+        return html_chat_selector
             
     def generate_settings_component(self, name, component, component_init):
         """

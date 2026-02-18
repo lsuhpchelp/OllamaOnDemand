@@ -165,7 +165,7 @@ Content:
             
             chat["txt"] = [txt_msg]
         
-    except:
+    except Exception:
         
         gr.Warning("Opening file failed! Please try again!", title="Error")
     
@@ -233,7 +233,7 @@ def mm_pdf_upload(chat, path):
             image.save(image_path)
             i += 1
         
-    except:
+    except Exception:
         
         gr.Warning("Fail to process PDF file! Please try again later!", title="Error")
 

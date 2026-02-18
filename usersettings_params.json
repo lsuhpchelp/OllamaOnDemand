@@ -268,7 +268,7 @@
         "name" :                    "stop", 
         "component" :               "Textbox",
         "component_init" : {
-            "label":                "(Stop sequence. Seperated by \",\")"
+            "label":                "(Stop sequence. Separated by \",\")"
         }
     },
     {
