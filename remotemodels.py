@@ -49,7 +49,7 @@ def dict_page_models(page):
         
     # Fetch the HTML content from Ollama model search with given page
     #   * This should only fetch officially maintained model, not user pushed
-    html = requests.get(f"https://ollama.com/search?page={page:d}").text
+    html = requests.get(f"https://ollama.com/search?page={page:d}", timeout=30).text
 
     # Extract lines containing listed model names
     #   * Model names are saved in "<span>" tags with "x-test-search-response-title"
@@ -62,8 +62,12 @@ def dict_page_models(page):
     models = {}
     for model_name in lines:
         
+        # Validate model name: only allow alphanumeric, hyphens, underscores, and dots
+        if not re.match(r'^[a-zA-Z0-9._-]+$', model_name):
+            continue
+        
         # Fetch model page
-        html = requests.get(f"https://ollama.com/library/{model_name}").text
+        html = requests.get(f"https://ollama.com/library/{model_name}", timeout=30).text
 
         # Extract lines containing listed model names
         #  * Model full names (including tags) are saved in "<a href=...>" tags with "font-medium text-neutral-800" classes

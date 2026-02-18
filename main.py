@@ -138,7 +138,7 @@ class OllamaOnDemandUI:
         for _ in range(60): 
             
             try:
-                if requests.get(url).ok:
+                if requests.get(url, timeout=5).ok:
                     print("Ollama server is running")
                     return ""
             except:
@@ -750,6 +750,13 @@ class OllamaOnDemandUI:
             chat_history:   Chat history
         """
         
+        # Validate index
+        index = int(index)
+        num_chats = len(cs.get_chat_titles())
+        if index < 0 or index >= num_chats:
+            gr.Warning("Invalid chat index!", title="Error")
+            return self.chat_history_display()
+        
         # Update current chat
         self.update_current_chat(index)
         
@@ -784,6 +791,12 @@ class OllamaOnDemandUI:
             chat_selector:  Chat selector update
         """
         
+        # Validate index
+        index = int(index)
+        num_chats = len(cs.get_chat_titles())
+        if index < 0 or index >= num_chats:
+            return
+        
         # Change chat title
         cs.set_chat_title(index, title)
         
@@ -801,6 +814,12 @@ class OllamaOnDemandUI:
             history:        Selected chat hisotry
         """
         
+        # Validate index
+        index = int(index)
+        num_chats = len(cs.get_chat_titles())
+        if index < 0 or index >= num_chats:
+            return ""
+        
         return json.dumps(cs.load_chat(index), indent=2, ensure_ascii=False)
 
     def delete_chat(self, index):
@@ -813,6 +832,12 @@ class OllamaOnDemandUI:
             chat_selector:  Chat selector update
             chat_history:   Chat history
         """
+        
+        # Validate index
+        index = int(index)
+        num_chats = len(cs.get_chat_titles())
+        if index < 0 or index >= num_chats:
+            return gr.update(value=self.generate_chat_selector()), self.chat_history_display()
         
         # Delegate deletion to chatsessions
         cs.delete_chat(index)
@@ -948,6 +973,30 @@ class OllamaOnDemandUI:
         """
         
         model_path_old = self.settings["ollama_models"]
+        
+        # Validate model path: must be an absolute path and actually a directory
+        model_path = os.path.realpath(model_path)
+        if not os.path.isabs(model_path) or not os.path.isdir(model_path):
+            error = "Invalid path: must be an absolute path to an existing directory!"
+            gr.Warning(error, title="Error")
+            
+            # Get model install name and tag lists
+            choices_names = self.generate_settings_model_name_choices()
+            choices_tags = self.generate_settings_model_tag_choices(choices_names[0][1])
+            is_installed = choices_names[0][1]+":"+choices_tags[0][1] in self.models
+            
+            return [gr.update(choices=self.list_installed_models(formatted=True), value=self.models[0], interactive=True),
+                    gr.update(value=self.settings["ollama_models"], interactive=True),
+                    gr.update(interactive=True),
+                    gr.update(interactive=True),
+                    gr.update(choices=choices_names, value=choices_names[0][1], 
+                              interactive=self.gr_rightbar.is_model_path_writable),
+                    gr.update(choices=choices_tags, value=choices_tags[0][1], 
+                              interactive=self.gr_rightbar.is_model_path_writable),
+                    gr.update(visible=not is_installed, 
+                              interactive=self.gr_rightbar.is_model_path_writable),
+                    gr.update(visible=is_installed,
+                              interactive=self.gr_rightbar.is_model_path_writable)]
         
         # If path is writable, change model path and enable model installation
         if (os.access(model_path, os.W_OK)):
@@ -1469,8 +1518,13 @@ class OllamaOnDemandUI:
                     with open(self.current_path+'/usersettings_params.json', "r", encoding="utf-8") as f:
                         params = json.load(f)
                         
+                    # Allowed Gradio component types for user settings
+                    ALLOWED_COMPONENTS = {"Markdown", "Checkbox", "Number", "Slider", "Textbox", "Dropdown"}
+                    
                     # Generate parameters
                     for param in params:
+                        if param["component"] not in ALLOWED_COMPONENTS:
+                            continue
                         self.generate_settings_component(
                             name = param["name"], 
                             component = getattr(gr, param["component"]),
