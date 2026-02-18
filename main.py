@@ -8,9 +8,9 @@ import requests
 import json
 import subprocess
 import time
-import requests
 import re
 import shutil
+import html as html_module
 import ollama
 from typing import Literal
 import chatsessions as cs
@@ -284,7 +284,7 @@ class OllamaOnDemandUI:
                 
                 models = rm.dict_all_models()
                 
-                rm.save_model_list(self.args.workdir, rm.dict_all_models())
+                rm.save_model_list(self.args.workdir, models)
                 
         return(models)
         
@@ -301,10 +301,12 @@ class OllamaOnDemandUI:
             bool
         """
         
+        blobs_path = os.path.join(model_path, "blobs")
+        manifests_path = os.path.join(model_path, "manifests")
         return(os.access(model_path, os.R_OK) \
-                and os.access(model_path+"/blobs", os.R_OK) \
-                and os.access(model_path+"/manifests", os.R_OK) \
-                and len(os.listdir(model_path+"/manifests")) > 0)
+                and os.access(blobs_path, os.R_OK) \
+                and os.access(manifests_path, os.R_OK) \
+                and len(os.listdir(manifests_path)) > 0)
                     
     def update_current_chat(self, chat_index):
         """
@@ -573,7 +575,7 @@ class OllamaOnDemandUI:
             # If error occurs
             except Exception as error: 
                 
-                self.chat_history[-1]["content"] = "[Error] An error has occured! Please see error message and and try again!"
+                self.chat_history[-1]["content"] = "[Error] An error has occurred! Please see error message and try again!"
                 gr.Warning(str(error), title="Error")
                 yield self.chat_history_display(), gr.update(value="", submit_btn=False, stop_btn=True)
         
@@ -696,7 +698,7 @@ class OllamaOnDemandUI:
                 index -= len(self.chat_history[i]["files"])
             i += 1
         
-        # Revert to editted user message
+        # Revert to edited user message
         self.chat_history[:] = self.chat_history[:index+1]
         self.chat_history[-1]["content"] = edit_data.value
         self.chat_history.append({"role": "assistant", "content": "", "thinking": ""})
@@ -962,7 +964,7 @@ class OllamaOnDemandUI:
             if (error):
                 
                 # Reset user settings
-                elf.settings["ollama_models"] = model_path_old
+                self.settings["ollama_models"] = model_path_old
                 
                 # Re-restart
                 self.server_process.kill()
@@ -999,7 +1001,7 @@ class OllamaOnDemandUI:
                 if (error):
                     
                     # Reset user settings
-                    elf.settings["ollama_models"] = model_path_old
+                    self.settings["ollama_models"] = model_path_old
                     
                     # Re-restart
                     self.server_process.kill()
@@ -1192,9 +1194,10 @@ class OllamaOnDemandUI:
         
             for i, title in enumerate(titles):
                 active = "active-chat" if i == self.chat_index else ""
+                safe_title = html_module.escape(title)
                 html += f"""
                 <div class='chat-entry {active}' onclick="select_chat_js({i})" id='chat-entry-{i}'>
-                    <span class='chat-title' id='chat-title-{i}' title='{title}'>{title}</span>
+                    <span class='chat-title' id='chat-title-{i}' title='{safe_title}'>{safe_title}</span>
                     <input class='chat-title-input custom-hidden' id='chat-title-input-{i}' autocomplete='off'
                            onkeydown="rename_chat_confirm_js(event, {i})"
                            onblur="rename_chat_cancel_js({i})" 
@@ -1212,9 +1215,10 @@ class OllamaOnDemandUI:
         else:
         
             for i, title in enumerate(titles):
+                safe_title = html_module.escape(title)
                 html += f"""
                 <div class='chat-entry'>
-                    <span class='chat-title' title='{title}'>{title}</span>
+                    <span class='chat-title' title='{safe_title}'>{safe_title}</span>
                     <button class='menu-btn'>⋯</button>
                     <div class='chat-menu' id='chat-menu-{i}'>
                         <button>Rename</button>
