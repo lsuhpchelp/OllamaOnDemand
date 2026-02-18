@@ -751,7 +751,11 @@ class OllamaOnDemandUI:
         """
         
         # Validate index
-        index = int(index)
+        try:
+            index = int(index)
+        except (ValueError, TypeError):
+            gr.Warning("Invalid chat index!", title="Error")
+            return self.chat_history_display()
         num_chats = len(cs.get_chat_titles())
         if index < 0 or index >= num_chats:
             gr.Warning("Invalid chat index!", title="Error")
@@ -792,7 +796,10 @@ class OllamaOnDemandUI:
         """
         
         # Validate index
-        index = int(index)
+        try:
+            index = int(index)
+        except (ValueError, TypeError):
+            return
         num_chats = len(cs.get_chat_titles())
         if index < 0 or index >= num_chats:
             return
@@ -811,11 +818,14 @@ class OllamaOnDemandUI:
         Input:
             index:          Chat index
         Output: 
-            history:        Selected chat hisotry
+            history:        Selected chat history
         """
         
         # Validate index
-        index = int(index)
+        try:
+            index = int(index)
+        except (ValueError, TypeError):
+            return ""
         num_chats = len(cs.get_chat_titles())
         if index < 0 or index >= num_chats:
             return ""
@@ -834,7 +844,10 @@ class OllamaOnDemandUI:
         """
         
         # Validate index
-        index = int(index)
+        try:
+            index = int(index)
+        except (ValueError, TypeError):
+            return gr.update(value=self.generate_chat_selector()), self.chat_history_display()
         num_chats = len(cs.get_chat_titles())
         if index < 0 or index >= num_chats:
             return gr.update(value=self.generate_chat_selector()), self.chat_history_display()
@@ -974,9 +987,9 @@ class OllamaOnDemandUI:
         
         model_path_old = self.settings["ollama_models"]
         
-        # Validate model path: must be an absolute path and actually a directory
+        # Validate model path: resolve to canonical path and verify it's an existing directory
         model_path = os.path.realpath(model_path)
-        if not os.path.isabs(model_path) or not os.path.isdir(model_path):
+        if not os.path.isdir(model_path):
             error = "Invalid path: must be an absolute path to an existing directory!"
             gr.Warning(error, title="Error")
             
