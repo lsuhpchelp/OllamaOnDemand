@@ -34,143 +34,13 @@ class GradioComponents:
     """An empty class used to deposit Gradio components."""
     pass
 
-class OllamaOnDemandUI:
-    """Ollama OnDemand UI class."""
-    
-    #------------------------------------------------------------------
-    # Constructor
-    #------------------------------------------------------------------
-    
-    def __init__(self, args):
-        """
-        Constructor.
-        
-        Input:
-            args: Command-line arguments.
-        """
-        
-        # Current path
-        self.current_path = os.path.dirname(os.path.abspath(__file__))
-        
-        # Command-line arguments
-        self.args = args
-        
-        # Stop event (for streaming interruption)
-        self.is_streaming = False
-        
-        # Chat session(s)
-        self.load_chat_history()
-        self.update_current_chat(0)                 # Load chat at 0 index. Also initialize:
-                                                    #   self.chat_index     - Current chat index
-                                                    #   self.chat_title     - Current chat title
-                                                    #   self.chat_history   - Current chat history
-        
-        # Clean up orphaned cached files
-        self.cleanup_cache()
-        
-        # User settings
-        self.settings = self.load_settings()
-        
-        # Use default model path if:
-        #   1) User did not customize model path, or
-        #   2) Model path not writable and not a legal model path
-        if (not self.settings.get("ollama_models") or \
-            not os.access(self.settings.get("ollama_models"), os.W_OK) and \
-            not self.is_model_path(self.settings.get("ollama_models"))):
-            self.settings["ollama_models"] = self.args.ollama_models
-            self.save_settings()
-        
-        # Start Ollama server and save client(s)
-        self.start_server()
-        self.client = self.get_client()
-        
-        # Get models
-        self.models = self.list_installed_models()          # Installed models (List)
-        self.remote_models = self.dict_remote_models()      # Remote models (Dict)
-        if (not self.settings.get("model_selected") in self.models):
-            self.settings["model_selected"] = self.models[0]
-        
-        # Gradio components deposit
-        self.gr_main = GradioComponents()           # Main view
-        self.gr_leftbar = GradioComponents()        # Left sidebar
-        self.gr_rightbar = GradioComponents()       # Right sidebar
-        self.gr_rightbar.settings_components = {}   # User settings: Setting components
-        self.gr_rightbar.settings_defaults = {}     # User settings: Default checkbox
-        
-        # Compile regular expression for think tag replacement for display
-        self.think_tags = {
-            "head":    "<div class='thinking-block'><details open class='thinking'><summary><i><b>(Thinking...)</b></summary>\n\n<br>",
-            "tail":    "</i></details></div><br>\n\n"
-        }
+#----------------------------------------------------------------------
+# Misc utilities
+#----------------------------------------------------------------------
 
-    
-    #------------------------------------------------------------------
-    # Server connection
-    #------------------------------------------------------------------
-        
-    def start_server(self, raise_error=True):
-        """
-        Start Ollama Server
-        
-        Input:
-            None
-        Output:
-            None (raise error) or error message (return for future use)
-        """
-        
-        # Define environment variables
-        env = os.environ.copy()
-        env["OLLAMA_HOST"] = self.args.ollama_host
-        env["OLLAMA_MODELS"] = self.settings["ollama_models"]
-        env["OLLAMA_SCHED_SPREAD"] = "1"
+class MiscUtils:
+    """Misc utility methods."""
 
-        # Start the Ollama server
-        print("Starting Ollama server on " + self.args.ollama_host)
-        self.server_process = subprocess.Popen(
-            ["ollama", "serve"],
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-        
-        # Wait until the server starts
-        url = "http://" + self.args.ollama_host if not self.args.ollama_host.startswith(("http://", "https://")) else self.args.ollama_host
-        for _ in range(60): 
-            
-            try:
-                if requests.get(url).ok:
-                    print("Ollama server is running")
-                    return ""
-            except:
-                pass
-            print("Waiting for Ollama server to start...")
-            time.sleep(1)
-            
-        else:
-            
-            if (raise_error):
-                raise RuntimeError("Ollama server failed to start in 1 min. Something is wrong.")
-            else:
-                return("Ollama server failed to start in 1 min. Something is wrong.")
-            
-    def get_client(self, type="ollama"):
-        """
-        Get client.
-        
-        Input:
-            type: Client type. 
-                - "ollama": Ollama client (Default)
-                - "langchain": LangChain client (To be added)
-        Output:
-            client: Client object
-        """
-        if type=="ollama":
-            return ollama.Client(host=self.args.ollama_host)
-    
-    #------------------------------------------------------------------
-    # Misc utilities
-    #------------------------------------------------------------------
-    
     def cleanup_cache(self):
         """
         Clean up orphaned files in the cache directory.
@@ -468,7 +338,735 @@ class OllamaOnDemandUI:
         """
         return us.load_settings(self.args.workdir)
 
+
+
+#----------------------------------------------------------------------
+# Build left sidebar
+#----------------------------------------------------------------------
+
+class BuildLeft:
+    """Methods to build UI and register listeners in left sidebar."""
+
+    def generate_chat_selector(self, interactive=True):
+        """
+        Build chat selector (HTML code)
         
+        Input:
+            interactive:            Whether the code is responsive to events (Default: True)
+        Output: 
+            html_chat_selector:     Chat selector HTML code
+        """
+        
+        titles = cs.get_chat_titles()
+        html_chat_selector = ""
+        
+        if interactive:
+        
+            for i, title in enumerate(titles):
+                active = "active-chat" if i == self.chat_index else ""
+                title = html.escape(title)
+                html_chat_selector += f"""
+                <div class='chat-entry {active}' onclick="select_chat_js({i})" id='chat-entry-{i}'>
+                    <span class='chat-title' id='chat-title-{i}' title='{title}'>{title}</span>
+                    <input class='chat-title-input custom-hidden' id='chat-title-input-{i}' autocomplete='off'
+                           onkeydown="rename_chat_confirm_js(event, {i})"
+                           onblur="rename_chat_cancel_js({i})" 
+                            onclick="event.stopPropagation()" />
+                    <button class='menu-btn' onclick="event.stopPropagation(); open_menu({i})">⋯</button>
+                    <div class='chat-menu' id='chat-menu-{i}'>
+                        <button onclick="event.stopPropagation(); rename_chat_js({i})">Rename</button>
+                        <button onclick="event.stopPropagation(); export_chat_js({i})">Export</button>
+                        <button onclick="event.stopPropagation(); delete_chat_js({i})">Delete</button>
+                    </div>
+                </div>
+
+                """
+                
+        else:
+        
+            for i, title in enumerate(titles):
+                title = html.escape(title)
+                html_chat_selector += f"""
+                <div class='chat-entry'>
+                    <span class='chat-title' title='{title}'>{title}</span>
+                    <button class='menu-btn'>⋯</button>
+                    <div class='chat-menu' id='chat-menu-{i}'>
+                        <button>Rename</button>
+                        <button>Export</button>
+                        <button>Delete</button>
+                    </div>
+                </div>
+                """
+        
+        return html_chat_selector
+
+    def build_left(self):
+        """
+        Build left sidebar
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+        
+        with gr.Sidebar(width=350, position="left", open=False) as self.gr_leftbar.leftbar:
+
+            # New Chat button
+            self.gr_leftbar.new_btn = gr.Button("💬️ New Chat")
+            
+            # Chat selector
+            self.gr_leftbar.chat_selector = gr.HTML(
+                value=self.generate_chat_selector(),
+                elem_id="chat-list-container"
+            )
+            
+            # Hidden elements (For customized JS responses)
+            self.gr_leftbar.hidden_input_chatindex = gr.Number(elem_id="hidden_input_chatindex", elem_classes=["custom-hidden"])
+            self.gr_leftbar.hidden_input_rename = gr.Textbox(elem_id="hidden_input_rename", elem_classes=["custom-hidden"])
+            self.gr_leftbar.hidden_input_export = gr.Textbox(elem_classes=["custom-hidden"])
+            self.gr_leftbar.hidden_btn_select = gr.Button(elem_id="hidden_btn_select", elem_classes=["custom-hidden"])
+            self.gr_leftbar.hidden_btn_rename = gr.Button(elem_id="hidden_btn_rename", elem_classes=["custom-hidden"])
+            self.gr_leftbar.hidden_btn_export = gr.Button(elem_id="hidden_btn_export", elem_classes=["custom-hidden"])
+            self.gr_leftbar.hidden_btn_delete = gr.Button(elem_id="hidden_btn_delete", elem_classes=["custom-hidden"])
+
+
+    def register_left(self):
+        """
+        Register event handlers in left sidebar
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+            
+        # New chat button
+        self.gr_leftbar.new_btn.click(
+            fn=self.new_chat,
+            inputs=[],
+            outputs=[self.gr_leftbar.chat_selector, self.gr_main.chatbot]
+        ).then(
+            fn=self.save_chat_history,              # Save chat history
+            inputs=[],
+            outputs=[]
+        )
+        
+        # Change selected chat
+        self.gr_leftbar.hidden_btn_select.click(
+            fn=self.select_chat,
+            inputs=[self.gr_leftbar.hidden_input_chatindex],
+            outputs=[self.gr_main.chatbot]
+        ).then(
+            fn=None,
+            inputs=[],
+            outputs=[],
+            js="collapse_thinking()"
+        )
+        
+        # Rename chat
+        self.gr_leftbar.hidden_btn_rename.click(    # Do rename
+            fn=self.rename_chat,
+            inputs=[self.gr_leftbar.hidden_input_chatindex, self.gr_leftbar.hidden_input_rename],
+            outputs=[]
+        ).then(
+            fn=self.save_chat_history,              # Save chat history
+            inputs=[],
+            outputs=[]
+        )
+
+        # Export chat
+        self.gr_leftbar.hidden_btn_export.click(
+            fn=self.export_chat,
+            inputs=[self.gr_leftbar.hidden_input_chatindex],
+            outputs=[self.gr_leftbar.hidden_input_export]
+        ).then(
+            fn=None,
+            inputs=[],
+            outputs=[self.gr_leftbar.hidden_input_export],
+            js="(json) => trigger_json_download('chat_history.json', json)"
+        )
+        
+        # Delete chat
+        self.gr_leftbar.hidden_btn_delete.click(
+            fn=self.delete_chat,                    # Do delete
+            inputs=[self.gr_leftbar.hidden_input_chatindex],
+            outputs=[self.gr_leftbar.chat_selector, self.gr_main.chatbot]
+        ).then(
+            fn=self.save_chat_history,              # Save chat history
+            inputs=[],
+            outputs=[]
+        )
+
+
+#----------------------------------------------------------------------
+# Build right sidebar
+#----------------------------------------------------------------------
+
+class BuildRight:
+    """Methods to build UI and register listeners in right sidebar."""
+
+    def generate_settings_component(self, name, component, component_init):
+        """
+        Build each setting component.
+        
+        Input:
+            name:           Name of the parameter. Must be the same as Ollama Python's parameter list
+            component:      Gradio component method reference
+            component_init: Gradio component method initialization arguments
+        Output: 
+            None
+        """
+        
+        # Check user set it to use model default value
+        if (self.settings.get("options") and name in self.settings.get("options")):
+            default = False
+        else:
+            default = True
+        
+        # If component is gr.Markdown, then just build it
+        if (component == gr.Markdown):
+        
+            # Render markdown
+            component(**component_init)
+        
+        # Otherwise, build UI components
+        else:
+        
+            with gr.Row(elem_classes = ["param-item"]):
+                
+                # Display name
+                gr.Markdown("**" + name + "**")
+                
+                # Default checkbox
+                self.gr_rightbar.settings_defaults[name] = \
+                    gr.Checkbox(label="(Use default)", 
+                                interactive=True, 
+                                container=False, 
+                                value=default,
+                                min_width=0)
+                    
+            # Build adjusting component
+            value = self.settings.get("options").get(name) if self.settings.get("options") else 0
+            self.gr_rightbar.settings_components[name] = component(
+                value = value,
+                visible = not default, 
+                interactive = True, 
+                **component_init
+            )
+            
+            # Register checkbox behavior
+            self.gr_rightbar.settings_defaults[name].change(
+                fn = lambda arg_value, arg_is_default: self.settings_param_default_change(name, arg_value, arg_is_default),
+                inputs = [self.gr_rightbar.settings_components[name], self.gr_rightbar.settings_defaults[name]],
+                outputs = [self.gr_rightbar.settings_components[name]]
+            )
+            
+            # Register adjusting component behavior
+            self.gr_rightbar.settings_components[name].change(
+                fn = lambda arg_value: self.settings_param_value_change(name, arg_value),
+                inputs = [self.gr_rightbar.settings_components[name]],
+                outputs = []
+            )
+
+    def generate_settings_model_name_choices(self):
+        """
+        Generate dropdown choices for remote model names
+        
+        Input:
+            None
+        Output: 
+            [(key, val)]:   A list of (key, value) pair, and add "✅" to keys if installed
+        """
+        
+        # List model names (values)
+        values = sorted(list(self.remote_models.keys()))
+        
+        # Generate dropdown choices
+        res = []
+        dict_installed_models = self.dict_installed_models()
+        for val in values:
+            if val in dict_installed_models:
+                res.append((val + " ✅", val))
+            else:
+                res.append((val, val))
+        
+        # Return
+        return(res)
+
+    def generate_settings_model_tag_choices(self, name):
+        """
+        Generate dropdown choices for remote model tags
+        
+        Input:
+            name:           Model name
+        Output: 
+            [(key, val)]:   A list of (key, value) pair, and add "✅" to keys if installed
+        """
+        
+        # List model names (values)
+        values = self.remote_models[name]
+        
+        # Generate dropdown choices
+        res = []
+        dict_installed_tags = self.dict_installed_models().get(name) if self.dict_installed_models().get(name) else []
+        for val in values:
+            if val in dict_installed_tags:
+                res.append((val + " ✅", val))
+            else:
+                res.append((val, val))
+        
+        # Return
+        return(res)
+
+    def build_right(self):
+        """
+        Build right sidebar
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+        
+        with gr.Sidebar(width=350, position="right", label="Settings", open=False) as self.gr_rightbar.rightbar:
+            
+            # Title
+            gr.Markdown("## User Settings")
+            
+            # Table 1: Ollama Parameters
+            with gr.Tab("Parameters", elem_classes=["settings-padding"]):
+            
+                with gr.Column(elem_classes=["param-list"]):
+            
+                    # Read parameter setting JSON file
+                    with open(self.current_path+'/usersettings_params.json', "r", encoding="utf-8") as f:
+                        params = json.load(f)
+                        
+                    # Generate parameters
+                    for param in params:
+                        self.generate_settings_component(
+                            name = param["name"], 
+                            component = getattr(gr, param["component"]),
+                            component_init = param["component_init"]
+                        )
+            
+            # Table 2: Ollama Models
+            with gr.Tab("Models", elem_classes=["settings-padding"]):
+                
+                gr.Markdown("### Ollama Model Directory")
+
+                # Directory picker
+                self.gr_rightbar.model_path_text = gr.Textbox(
+                    value=self.settings["ollama_models"],
+                    label="",
+                    max_lines=1,
+                    container=False,
+                    interactive=True,
+                    elem_id="dir-path",
+                    #submit_btn="📁",      # TODO: Change this to an actual file picker
+                )
+                
+                # Action buttons
+                with gr.Row():
+                    
+                    # Save button
+                    self.gr_rightbar.model_path_save = gr.Button(
+                        "💾 Save",
+                        min_width=0
+                    )
+                    self.gr_rightbar.model_path_reset = gr.Button(
+                        "🔄 Reset",
+                        min_width=0
+                    )
+                    
+                    # Reset button
+                
+                gr.HTML("")
+                
+                gr.Markdown("### Install Models")
+                
+                # Initial check whether the path is writable
+                self.gr_rightbar.is_model_path_writable = os.access(self.settings["ollama_models"], os.W_OK)
+
+                # List remote models to install
+                self.gr_rightbar.model_install_names = gr.Dropdown(
+                    choices=self.generate_settings_model_name_choices(),
+                    label="Model Name",
+                    interactive=self.gr_rightbar.is_model_path_writable
+                )
+                self.gr_rightbar.model_install_tags = gr.Dropdown(
+                    choices=self.generate_settings_model_tag_choices(self.gr_rightbar.model_install_names.value),
+                    label="Model Tag",
+                    interactive=self.gr_rightbar.is_model_path_writable
+                )
+                
+                # Install / remove button
+                with gr.Row():
+                    
+                    # Initial check which button to display
+                    is_installed = self.gr_rightbar.model_install_names.value + ":" + self.gr_rightbar.model_install_tags.value in self.models
+                    
+                    # Generate buttons
+                    self.gr_rightbar.model_install_btn = gr.Button("📥 Install Selected Model", 
+                                                                    interactive=self.gr_rightbar.is_model_path_writable,
+                                                                    visible=not is_installed)
+                    self.gr_rightbar.model_remove_btn = gr.Button("❌ Remove Selected Model", 
+                                                                    interactive=self.gr_rightbar.is_model_path_writable,
+                                                                    visible=is_installed)
+                
+                # Status stream
+                self.gr_rightbar.model_install_status = gr.Markdown("")
+
+    def register_right(self):
+        """
+        Register event handlers in right sidebar
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+        
+        # Change model path (hit enter)
+        self.workflow_change_model_path(self.gr_rightbar.model_path_text.submit)
+        
+        # Change model path (click "save" button)
+        self.workflow_change_model_path(self.gr_rightbar.model_path_save.click)
+        
+        # Reset model path
+        self.workflow_change_model_path(
+            self.gr_rightbar.model_path_reset.click(            # First update textbox to default
+                fn=lambda : self.args.ollama_models,
+                inputs=[],
+                outputs=[self.gr_rightbar.model_path_text]
+            ).then                                              # Then execute the workflow
+        )
+        
+        # Change install model name
+        self.gr_rightbar.model_install_names.change(            # Force update when system trigger change
+            fn=self.settings_update_model_tags,
+            inputs=[self.gr_rightbar.model_install_names],
+            outputs=[self.gr_rightbar.model_install_tags]
+        ).then(
+            fn=self.settings_update_model_buttons,
+            inputs=[self.gr_rightbar.model_install_names,
+                    self.gr_rightbar.model_install_tags],
+            outputs=[self.gr_rightbar.model_install_btn,
+                     self.gr_rightbar.model_remove_btn]
+        )
+        
+        # Change install model tag (when user update)
+        self.gr_rightbar.model_install_tags.input(
+            fn=self.settings_update_model_buttons,
+            inputs=[self.gr_rightbar.model_install_names,
+                    self.gr_rightbar.model_install_tags],
+            outputs=[self.gr_rightbar.model_install_btn,
+                     self.gr_rightbar.model_remove_btn]
+        )
+        
+        # Install selected models
+        self.workflow_install_remove_model(
+            event_handler = self.gr_rightbar.model_install_btn.click,
+            action = "install"
+        )
+        
+        # Remove selected models
+        self.workflow_install_remove_model(
+            event_handler = self.gr_rightbar.model_remove_btn.click,
+            action = "remove"
+        )
+
+
+#----------------------------------------------------------------------
+# Build main view
+#----------------------------------------------------------------------
+
+class BuildMain:
+    """Methods to build UI and register listeners in main view."""
+
+    def build_main(self):
+        """
+        Build main view
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+            
+        # Header
+        with gr.Row(
+            elem_id="gr-main-header",
+            elem_classes=["no-shrink", "main-max-width"]
+        ):
+            
+            # Title
+            logo = "gradio_api/file=" + self.current_path + "/images/logo.png"
+            gr.Markdown(
+                f"""
+                <div style="display: flex; align-items: center; gap: 1px;">
+                    <img src="{logo}" alt="Logo" style="height:40px; width: 40px;">
+                    <h2 style="margin-top: 10px;" class="mobile-header">llama OnDemand</h2>
+                </div>
+                """
+            )
+            
+            # Model selector
+            self.gr_main.model_dropdown = gr.Dropdown(
+                choices=self.list_installed_models(formatted=True),
+                value=self.settings["model_selected"],
+                interactive=True,
+                show_label=False,
+                container=False,
+                min_width=0,
+                elem_id="gr-model-selector"
+            )
+        
+        # Body
+        with gr.Column(elem_id="gr-chatbot-container"):
+            
+            # Main chatbot
+            self.gr_main.chatbot = gr.Chatbot(
+                height=None,
+                show_label=False,
+                type="messages",
+                show_copy_button=True,
+                group_consecutive_messages=False,
+                editable="user",
+                allow_tags=True,
+                elem_id="gr-chatbot"
+            )
+            
+        # Footer
+        with gr.Column(
+            elem_classes=["no-shrink", "main-max-width"]
+        ):
+            
+            #Input field (multimodal)
+            self.gr_main.user_input = gr.MultimodalTextbox(
+                placeholder="Ask anything", 
+                submit_btn=True,
+                stop_btn=False,
+                show_label=False,
+                file_types=["image", "text"] + list(mm.filetypes.keys()),
+                file_count="multiple",
+                max_lines=10,
+                max_plain_text_length=10000,
+                elem_id="gr-user-input"
+            )
+
+    def register_main(self):
+        """
+        Register event handlers in main view
+        
+        Input:
+            None
+        Output: 
+            None
+        """
+            
+        # Model selector
+        self.gr_main.model_dropdown.change(
+            fn=self.select_model,
+            inputs=[self.gr_main.model_dropdown],
+            outputs=[],
+        )
+        
+        # Chatbot: Retry
+        self.workflow_basic_streaming(
+            self.gr_main.chatbot.retry(
+                fn=self.retry,
+                inputs=[],
+                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+            )
+        )
+        
+        # Chatbot: Edit
+        self.workflow_basic_streaming(
+            self.gr_main.chatbot.edit(
+                fn=self.edit,
+                inputs=[],
+                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+            )
+        )
+
+        # User input: Submit new message
+        self.workflow_basic_streaming(
+            self.gr_main.user_input.submit(
+                fn=self.new_message,
+                inputs=[self.gr_main.user_input],
+                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+            )
+        )
+        
+        # User input: Change textarea height
+        self.gr_main.user_input.change(
+            fn=None,
+            inputs=[],
+            outputs=[],
+            js="""
+            function() {
+                const container = document.getElementById('gr-chatbot-container');
+                const header = document.getElementById('gr-main-header');
+                const inputBox = document.getElementById('gr-user-input');
+                if (container && inputBox && header) {
+                    const inputHeight = inputBox.offsetHeight;
+                    const headerHeight = header.offsetHeight;
+                    container.style.height = `calc(100dvh - ${inputHeight + headerHeight + 70}px)`;
+                }
+            }
+            """
+        )
+        
+        # User input: Stop
+        self.workflow_after_streaming( 
+            self.gr_main.user_input.stop(
+                fn=self.stop_stream_chat,
+                inputs=[],
+                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
+            )
+        )
+
+
+#----------------------------------------------------------------------
+# Main UI class
+#----------------------------------------------------------------------
+
+class OllamaOnDemandUI(MiscUtils, BuildLeft, BuildRight, BuildMain):
+    """Ollama OnDemand UI class."""
+    
+    #------------------------------------------------------------------
+    # Constructor
+    #------------------------------------------------------------------
+    
+    def __init__(self, args):
+        """
+        Constructor.
+        
+        Input:
+            args: Command-line arguments.
+        """
+        
+        # Current path
+        self.current_path = os.path.dirname(os.path.abspath(__file__))
+        
+        # Command-line arguments
+        self.args = args
+        
+        # Stop event (for streaming interruption)
+        self.is_streaming = False
+        
+        # Chat session(s)
+        self.load_chat_history()
+        self.update_current_chat(0)                 # Load chat at 0 index. Also initialize:
+                                                    #   self.chat_index     - Current chat index
+                                                    #   self.chat_title     - Current chat title
+                                                    #   self.chat_history   - Current chat history
+        
+        # Clean up orphaned cached files
+        self.cleanup_cache()
+        
+        # User settings
+        self.settings = self.load_settings()
+        
+        # Use default model path if:
+        #   1) User did not customize model path, or
+        #   2) Model path not writable and not a legal model path
+        if (not self.settings.get("ollama_models") or \
+            not os.access(self.settings.get("ollama_models"), os.W_OK) and \
+            not self.is_model_path(self.settings.get("ollama_models"))):
+            self.settings["ollama_models"] = self.args.ollama_models
+            self.save_settings()
+        
+        # Start Ollama server and save client(s)
+        self.start_server()
+        self.client = self.get_client()
+        
+        # Get models
+        self.models = self.list_installed_models()          # Installed models (List)
+        self.remote_models = self.dict_remote_models()      # Remote models (Dict)
+        if (not self.settings.get("model_selected") in self.models):
+            self.settings["model_selected"] = self.models[0]
+        
+        # Gradio components deposit
+        self.gr_main = GradioComponents()           # Main view
+        self.gr_leftbar = GradioComponents()        # Left sidebar
+        self.gr_rightbar = GradioComponents()       # Right sidebar
+        self.gr_rightbar.settings_components = {}   # User settings: Setting components
+        self.gr_rightbar.settings_defaults = {}     # User settings: Default checkbox
+        
+        # Compile regular expression for think tag replacement for display
+        self.think_tags = {
+            "head":    "<div class='thinking-block'><details open class='thinking'><summary><i><b>(Thinking...)</b></summary>\n\n<br>",
+            "tail":    "</i></details></div><br>\n\n"
+        }
+
+    
+
+    #------------------------------------------------------------------
+    # Server connection
+    #------------------------------------------------------------------
+        
+    def start_server(self, raise_error=True):
+        """
+        Start Ollama Server
+        
+        Input:
+            None
+        Output:
+            None (raise error) or error message (return for future use)
+        """
+        
+        # Define environment variables
+        env = os.environ.copy()
+        env["OLLAMA_HOST"] = self.args.ollama_host
+        env["OLLAMA_MODELS"] = self.settings["ollama_models"]
+        env["OLLAMA_SCHED_SPREAD"] = "1"
+
+        # Start the Ollama server
+        print("Starting Ollama server on " + self.args.ollama_host)
+        self.server_process = subprocess.Popen(
+            ["ollama", "serve"],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        
+        # Wait until the server starts
+        url = "http://" + self.args.ollama_host if not self.args.ollama_host.startswith(("http://", "https://")) else self.args.ollama_host
+        for _ in range(60): 
+            
+            try:
+                if requests.get(url).ok:
+                    print("Ollama server is running")
+                    return ""
+            except:
+                pass
+            print("Waiting for Ollama server to start...")
+            time.sleep(1)
+            
+        else:
+            
+            if (raise_error):
+                raise RuntimeError("Ollama server failed to start in 1 min. Something is wrong.")
+            else:
+                return("Ollama server failed to start in 1 min. Something is wrong.")
+            
+    def get_client(self, type="ollama"):
+        """
+        Get client.
+        
+        Input:
+            type: Client type. 
+                - "ollama": Ollama client (Default)
+                - "langchain": LangChain client (To be added)
+        Output:
+            client: Client object
+        """
+        if type=="ollama":
+            return ollama.Client(host=self.args.ollama_host)
+
     #------------------------------------------------------------------
     # Event handler
     #------------------------------------------------------------------
@@ -1172,378 +1770,12 @@ class OllamaOnDemandUI:
                 gr.update(visible=is_installed,
                           interactive=self.gr_rightbar.is_model_path_writable)]             # Model remove button
         
+
     
     #------------------------------------------------------------------
     # Build UI
     #------------------------------------------------------------------
             
-    def generate_chat_selector(self, interactive=True):
-        """
-        Build chat selector (HTML code)
-        
-        Input:
-            interactive:            Whether the code is responsive to events (Default: True)
-        Output: 
-            html_chat_selector:     Chat selector HTML code
-        """
-        
-        titles = cs.get_chat_titles()
-        html_chat_selector = ""
-        
-        if interactive:
-        
-            for i, title in enumerate(titles):
-                active = "active-chat" if i == self.chat_index else ""
-                title = html.escape(title)
-                html_chat_selector += f"""
-                <div class='chat-entry {active}' onclick="select_chat_js({i})" id='chat-entry-{i}'>
-                    <span class='chat-title' id='chat-title-{i}' title='{title}'>{title}</span>
-                    <input class='chat-title-input custom-hidden' id='chat-title-input-{i}' autocomplete='off'
-                           onkeydown="rename_chat_confirm_js(event, {i})"
-                           onblur="rename_chat_cancel_js({i})" 
-                            onclick="event.stopPropagation()" />
-                    <button class='menu-btn' onclick="event.stopPropagation(); open_menu({i})">⋯</button>
-                    <div class='chat-menu' id='chat-menu-{i}'>
-                        <button onclick="event.stopPropagation(); rename_chat_js({i})">Rename</button>
-                        <button onclick="event.stopPropagation(); export_chat_js({i})">Export</button>
-                        <button onclick="event.stopPropagation(); delete_chat_js({i})">Delete</button>
-                    </div>
-                </div>
-
-                """
-                
-        else:
-        
-            for i, title in enumerate(titles):
-                title = html.escape(title)
-                html_chat_selector += f"""
-                <div class='chat-entry'>
-                    <span class='chat-title' title='{title}'>{title}</span>
-                    <button class='menu-btn'>⋯</button>
-                    <div class='chat-menu' id='chat-menu-{i}'>
-                        <button>Rename</button>
-                        <button>Export</button>
-                        <button>Delete</button>
-                    </div>
-                </div>
-                """
-        
-        return html_chat_selector
-            
-    def generate_settings_component(self, name, component, component_init):
-        """
-        Build each setting component.
-        
-        Input:
-            name:           Name of the parameter. Must be the same as Ollama Python's parameter list
-            component:      Gradio component method reference
-            component_init: Gradio component method initialization arguments
-        Output: 
-            None
-        """
-        
-        # Check user set it to use model default value
-        if (self.settings.get("options") and name in self.settings.get("options")):
-            default = False
-        else:
-            default = True
-        
-        # If component is gr.Markdown, then just build it
-        if (component == gr.Markdown):
-        
-            # Render markdown
-            component(**component_init)
-        
-        # Otherwise, build UI components
-        else:
-        
-            with gr.Row(elem_classes = ["param-item"]):
-                
-                # Display name
-                gr.Markdown("**" + name + "**")
-                
-                # Default checkbox
-                self.gr_rightbar.settings_defaults[name] = \
-                    gr.Checkbox(label="(Use default)", 
-                                interactive=True, 
-                                container=False, 
-                                value=default,
-                                min_width=0)
-                    
-            # Build adjusting component
-            value = self.settings.get("options").get(name) if self.settings.get("options") else 0
-            self.gr_rightbar.settings_components[name] = component(
-                value = value,
-                visible = not default, 
-                interactive = True, 
-                **component_init
-            )
-            
-            # Register checkbox behavior
-            self.gr_rightbar.settings_defaults[name].change(
-                fn = lambda arg_value, arg_is_default: self.settings_param_default_change(name, arg_value, arg_is_default),
-                inputs = [self.gr_rightbar.settings_components[name], self.gr_rightbar.settings_defaults[name]],
-                outputs = [self.gr_rightbar.settings_components[name]]
-            )
-            
-            # Register adjusting component behavior
-            self.gr_rightbar.settings_components[name].change(
-                fn = lambda arg_value: self.settings_param_value_change(name, arg_value),
-                inputs = [self.gr_rightbar.settings_components[name]],
-                outputs = []
-            )
-        
-    def generate_settings_model_name_choices(self):
-        """
-        Generate dropdown choices for remote model names
-        
-        Input:
-            None
-        Output: 
-            [(key, val)]:   A list of (key, value) pair, and add "✅" to keys if installed
-        """
-        
-        # List model names (values)
-        values = sorted(list(self.remote_models.keys()))
-        
-        # Generate dropdown choices
-        res = []
-        dict_installed_models = self.dict_installed_models()
-        for val in values:
-            if val in dict_installed_models:
-                res.append((val + " ✅", val))
-            else:
-                res.append((val, val))
-        
-        # Return
-        return(res)
-        
-    def generate_settings_model_tag_choices(self, name):
-        """
-        Generate dropdown choices for remote model tags
-        
-        Input:
-            name:           Model name
-        Output: 
-            [(key, val)]:   A list of (key, value) pair, and add "✅" to keys if installed
-        """
-        
-        # List model names (values)
-        values = self.remote_models[name]
-        
-        # Generate dropdown choices
-        res = []
-        dict_installed_tags = self.dict_installed_models().get(name) if self.dict_installed_models().get(name) else []
-        for val in values:
-            if val in dict_installed_tags:
-                res.append((val + " ✅", val))
-            else:
-                res.append((val, val))
-        
-        # Return
-        return(res)
-    
-    def build_main(self):
-        """
-        Build main view
-        
-        Input:
-            None
-        Output: 
-            None
-        """
-            
-        # Header
-        with gr.Row(
-            elem_id="gr-main-header",
-            elem_classes=["no-shrink", "main-max-width"]
-        ):
-            
-            # Title
-            logo = "gradio_api/file=" + self.current_path + "/images/logo.png"
-            gr.Markdown(
-                f"""
-                <div style="display: flex; align-items: center; gap: 1px;">
-                    <img src="{logo}" alt="Logo" style="height:40px; width: 40px;">
-                    <h2 style="margin-top: 10px;" class="mobile-header">llama OnDemand</h2>
-                </div>
-                """
-            )
-            
-            # Model selector
-            self.gr_main.model_dropdown = gr.Dropdown(
-                choices=self.list_installed_models(formatted=True),
-                value=self.settings["model_selected"],
-                interactive=True,
-                show_label=False,
-                container=False,
-                min_width=0,
-                elem_id="gr-model-selector"
-            )
-        
-        # Body
-        with gr.Column(elem_id="gr-chatbot-container"):
-            
-            # Main chatbot
-            self.gr_main.chatbot = gr.Chatbot(
-                height=None,
-                show_label=False,
-                type="messages",
-                show_copy_button=True,
-                group_consecutive_messages=False,
-                editable="user",
-                allow_tags=True,
-                elem_id="gr-chatbot"
-            )
-            
-        # Footer
-        with gr.Column(
-            elem_classes=["no-shrink", "main-max-width"]
-        ):
-            
-            #Input field (multimodal)
-            self.gr_main.user_input = gr.MultimodalTextbox(
-                placeholder="Ask anything", 
-                submit_btn=True,
-                stop_btn=False,
-                show_label=False,
-                file_types=["image", "text"] + list(mm.filetypes.keys()),
-                file_count="multiple",
-                max_lines=10,
-                max_plain_text_length=10000,
-                elem_id="gr-user-input"
-            )
-    
-    def build_left(self):
-        """
-        Build left sidebar
-        
-        Input:
-            None
-        Output: 
-            None
-        """
-        
-        with gr.Sidebar(width=350, position="left", open=False) as self.gr_leftbar.leftbar:
-
-            # New Chat button
-            self.gr_leftbar.new_btn = gr.Button("💬️ New Chat")
-            
-            # Chat selector
-            self.gr_leftbar.chat_selector = gr.HTML(
-                value=self.generate_chat_selector(),
-                elem_id="chat-list-container"
-            )
-            
-            # Hidden elements (For customized JS responses)
-            self.gr_leftbar.hidden_input_chatindex = gr.Number(elem_id="hidden_input_chatindex", elem_classes=["custom-hidden"])
-            self.gr_leftbar.hidden_input_rename = gr.Textbox(elem_id="hidden_input_rename", elem_classes=["custom-hidden"])
-            self.gr_leftbar.hidden_input_export = gr.Textbox(elem_classes=["custom-hidden"])
-            self.gr_leftbar.hidden_btn_select = gr.Button(elem_id="hidden_btn_select", elem_classes=["custom-hidden"])
-            self.gr_leftbar.hidden_btn_rename = gr.Button(elem_id="hidden_btn_rename", elem_classes=["custom-hidden"])
-            self.gr_leftbar.hidden_btn_export = gr.Button(elem_id="hidden_btn_export", elem_classes=["custom-hidden"])
-            self.gr_leftbar.hidden_btn_delete = gr.Button(elem_id="hidden_btn_delete", elem_classes=["custom-hidden"])
-
-    
-    def build_right(self):
-        """
-        Build right sidebar
-        
-        Input:
-            None
-        Output: 
-            None
-        """
-        
-        with gr.Sidebar(width=350, position="right", label="Settings", open=False) as self.gr_rightbar.rightbar:
-            
-            # Title
-            gr.Markdown("## User Settings")
-            
-            # Table 1: Ollama Parameters
-            with gr.Tab("Parameters", elem_classes=["settings-padding"]):
-            
-                with gr.Column(elem_classes=["param-list"]):
-            
-                    # Read parameter setting JSON file
-                    with open(self.current_path+'/usersettings_params.json', "r", encoding="utf-8") as f:
-                        params = json.load(f)
-                        
-                    # Generate parameters
-                    for param in params:
-                        self.generate_settings_component(
-                            name = param["name"], 
-                            component = getattr(gr, param["component"]),
-                            component_init = param["component_init"]
-                        )
-            
-            # Table 2: Ollama Models
-            with gr.Tab("Models", elem_classes=["settings-padding"]):
-                
-                gr.Markdown("### Ollama Model Directory")
-
-                # Directory picker
-                self.gr_rightbar.model_path_text = gr.Textbox(
-                    value=self.settings["ollama_models"],
-                    label="",
-                    max_lines=1,
-                    container=False,
-                    interactive=True,
-                    elem_id="dir-path",
-                    #submit_btn="📁",      # TODO: Change this to an actual file picker
-                )
-                
-                # Action buttons
-                with gr.Row():
-                    
-                    # Save button
-                    self.gr_rightbar.model_path_save = gr.Button(
-                        "💾 Save",
-                        min_width=0
-                    )
-                    self.gr_rightbar.model_path_reset = gr.Button(
-                        "🔄 Reset",
-                        min_width=0
-                    )
-                    
-                    # Reset button
-                
-                gr.HTML("")
-                
-                gr.Markdown("### Install Models")
-                
-                # Initial check whether the path is writable
-                self.gr_rightbar.is_model_path_writable = os.access(self.settings["ollama_models"], os.W_OK)
-
-                # List remote models to install
-                self.gr_rightbar.model_install_names = gr.Dropdown(
-                    choices=self.generate_settings_model_name_choices(),
-                    label="Model Name",
-                    interactive=self.gr_rightbar.is_model_path_writable
-                )
-                self.gr_rightbar.model_install_tags = gr.Dropdown(
-                    choices=self.generate_settings_model_tag_choices(self.gr_rightbar.model_install_names.value),
-                    label="Model Tag",
-                    interactive=self.gr_rightbar.is_model_path_writable
-                )
-                
-                # Install / remove button
-                with gr.Row():
-                    
-                    # Initial check which button to display
-                    is_installed = self.gr_rightbar.model_install_names.value + ":" + self.gr_rightbar.model_install_tags.value in self.models
-                    
-                    # Generate buttons
-                    self.gr_rightbar.model_install_btn = gr.Button("📥 Install Selected Model", 
-                                                                    interactive=self.gr_rightbar.is_model_path_writable,
-                                                                    visible=not is_installed)
-                    self.gr_rightbar.model_remove_btn = gr.Button("❌ Remove Selected Model", 
-                                                                    interactive=self.gr_rightbar.is_model_path_writable,
-                                                                    visible=is_installed)
-                
-                # Status stream
-                self.gr_rightbar.model_install_status = gr.Markdown("")
-    
     def build_ui(self):
         """
         Build UI
@@ -1639,8 +1871,8 @@ class OllamaOnDemandUI:
             root_path=self.args.root_path,
             allowed_paths=[self.current_path]
         )
-    
-    
+
+
     #------------------------------------------------------------------
     # Register UI
     #------------------------------------------------------------------
@@ -1788,204 +2020,7 @@ class OllamaOnDemandUI:
                 self.gr_rightbar.model_remove_btn
             ]
         )
-    
-    def register_main(self):
-        """
-        Register event handlers in main view
-        
-        Input:
-            None
-        Output: 
-            None
-        """
-            
-        # Model selector
-        self.gr_main.model_dropdown.change(
-            fn=self.select_model,
-            inputs=[self.gr_main.model_dropdown],
-            outputs=[],
-        )
-        
-        # Chatbot: Retry
-        self.workflow_basic_streaming(
-            self.gr_main.chatbot.retry(
-                fn=self.retry,
-                inputs=[],
-                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
-            )
-        )
-        
-        # Chatbot: Edit
-        self.workflow_basic_streaming(
-            self.gr_main.chatbot.edit(
-                fn=self.edit,
-                inputs=[],
-                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
-            )
-        )
 
-        # User input: Submit new message
-        self.workflow_basic_streaming(
-            self.gr_main.user_input.submit(
-                fn=self.new_message,
-                inputs=[self.gr_main.user_input],
-                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
-            )
-        )
-        
-        # User input: Change textarea height
-        self.gr_main.user_input.change(
-            fn=None,
-            inputs=[],
-            outputs=[],
-            js="""
-            function() {
-                const container = document.getElementById('gr-chatbot-container');
-                const header = document.getElementById('gr-main-header');
-                const inputBox = document.getElementById('gr-user-input');
-                if (container && inputBox && header) {
-                    const inputHeight = inputBox.offsetHeight;
-                    const headerHeight = header.offsetHeight;
-                    container.style.height = `calc(100dvh - ${inputHeight + headerHeight + 70}px)`;
-                }
-            }
-            """
-        )
-        
-        # User input: Stop
-        self.workflow_after_streaming( 
-            self.gr_main.user_input.stop(
-                fn=self.stop_stream_chat,
-                inputs=[],
-                outputs=[self.gr_main.chatbot, self.gr_main.user_input]
-            )
-        )
-    
-    def register_left(self):
-        """
-        Register event handlers in left sidebar
-        
-        Input:
-            None
-        Output: 
-            None
-        """
-            
-        # New chat button
-        self.gr_leftbar.new_btn.click(
-            fn=self.new_chat,
-            inputs=[],
-            outputs=[self.gr_leftbar.chat_selector, self.gr_main.chatbot]
-        ).then(
-            fn=self.save_chat_history,              # Save chat history
-            inputs=[],
-            outputs=[]
-        )
-        
-        # Change selected chat
-        self.gr_leftbar.hidden_btn_select.click(
-            fn=self.select_chat,
-            inputs=[self.gr_leftbar.hidden_input_chatindex],
-            outputs=[self.gr_main.chatbot]
-        ).then(
-            fn=None,
-            inputs=[],
-            outputs=[],
-            js="collapse_thinking()"
-        )
-        
-        # Rename chat
-        self.gr_leftbar.hidden_btn_rename.click(    # Do rename
-            fn=self.rename_chat,
-            inputs=[self.gr_leftbar.hidden_input_chatindex, self.gr_leftbar.hidden_input_rename],
-            outputs=[]
-        ).then(
-            fn=self.save_chat_history,              # Save chat history
-            inputs=[],
-            outputs=[]
-        )
-
-        # Export chat
-        self.gr_leftbar.hidden_btn_export.click(
-            fn=self.export_chat,
-            inputs=[self.gr_leftbar.hidden_input_chatindex],
-            outputs=[self.gr_leftbar.hidden_input_export]
-        ).then(
-            fn=None,
-            inputs=[],
-            outputs=[self.gr_leftbar.hidden_input_export],
-            js="(json) => trigger_json_download('chat_history.json', json)"
-        )
-        
-        # Delete chat
-        self.gr_leftbar.hidden_btn_delete.click(
-            fn=self.delete_chat,                    # Do delete
-            inputs=[self.gr_leftbar.hidden_input_chatindex],
-            outputs=[self.gr_leftbar.chat_selector, self.gr_main.chatbot]
-        ).then(
-            fn=self.save_chat_history,              # Save chat history
-            inputs=[],
-            outputs=[]
-        )
-    
-    def register_right(self):
-        """
-        Register event handlers in right sidebar
-        
-        Input:
-            None
-        Output: 
-            None
-        """
-        
-        # Change model path (hit enter)
-        self.workflow_change_model_path(self.gr_rightbar.model_path_text.submit)
-        
-        # Change model path (click "save" button)
-        self.workflow_change_model_path(self.gr_rightbar.model_path_save.click)
-        
-        # Reset model path
-        self.workflow_change_model_path(
-            self.gr_rightbar.model_path_reset.click(            # First update textbox to default
-                fn=lambda : self.args.ollama_models,
-                inputs=[],
-                outputs=[self.gr_rightbar.model_path_text]
-            ).then                                              # Then execute the workflow
-        )
-        
-        # Change install model name
-        self.gr_rightbar.model_install_names.change(            # Force update when system trigger change
-            fn=self.settings_update_model_tags,
-            inputs=[self.gr_rightbar.model_install_names],
-            outputs=[self.gr_rightbar.model_install_tags]
-        ).then(
-            fn=self.settings_update_model_buttons,
-            inputs=[self.gr_rightbar.model_install_names,
-                    self.gr_rightbar.model_install_tags],
-            outputs=[self.gr_rightbar.model_install_btn,
-                     self.gr_rightbar.model_remove_btn]
-        )
-        
-        # Change install model tag (when user update)
-        self.gr_rightbar.model_install_tags.input(
-            fn=self.settings_update_model_buttons,
-            inputs=[self.gr_rightbar.model_install_names,
-                    self.gr_rightbar.model_install_tags],
-            outputs=[self.gr_rightbar.model_install_btn,
-                     self.gr_rightbar.model_remove_btn]
-        )
-        
-        # Install selected models
-        self.workflow_install_remove_model(
-            event_handler = self.gr_rightbar.model_install_btn.click,
-            action = "install"
-        )
-        
-        # Remove selected models
-        self.workflow_install_remove_model(
-            event_handler = self.gr_rightbar.model_remove_btn.click,
-            action = "remove"
-        )
 
 
 def main():
@@ -1996,4 +2031,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
