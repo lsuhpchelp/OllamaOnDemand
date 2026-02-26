@@ -21,7 +21,7 @@ from humanize import naturalsize
         
 # Set Gradio temp files directory before loading Gradio
 # (Fix an issue Gradio will create temp folders upon loading)
-from arg import get_args
+from arg import get_args, __version__
 args = get_args()
 os.environ["GRADIO_TEMP_DIR"] = args.workdir + "/cache"
 import gradio as gr
@@ -1167,7 +1167,7 @@ class BuildRight:
                 with gr.Column(elem_classes=["param-list"]):
             
                     # Read parameter setting JSON file
-                    with open(self.current_path+'/usersettings_params.json', "r", encoding="utf-8") as f:
+                    with open(self.current_path+'/usersettings.json', "r", encoding="utf-8") as f:
                         params = json.load(f)
                         
                     # Generate parameters
@@ -1244,6 +1244,22 @@ class BuildRight:
                 
                 # Status stream
                 self.gr_rightbar.model_install_status = gr.Markdown("")
+
+            # Table 3: About
+            with gr.Tab("About", elem_classes=["settings-padding"]):
+                
+                # Get Ollama version via HTTP request
+                ollama_version = "Unknown"
+                try:
+                    url = "http://" + self.args.ollama_host if not self.args.ollama_host.startswith(("http://", "https://")) else self.args.ollama_host
+                    response = requests.get(url + "/api/version", timeout=5)
+                    if response.ok:
+                        ollama_version = response.json().get("version", "Unknown")
+                except requests.RequestException:
+                    pass
+                
+                gr.Markdown(f"**Ollama OnDemand version:** {__version__}")
+                gr.Markdown(f"**Ollama version:** {ollama_version}")
 
     def register_right(self):
         """
