@@ -19,7 +19,7 @@ def format_chat_stream(chat):
     Input:
         chat:           An OpenAI style chat message dictionary
     Output: 
-        [chat,...]:     A list of chat messages (possibly more than one, as pure text will be submitted as separated messages)
+        [chat]:         A list containing a single chat message with text file contents appended to the original content
     """
     
     # Create a temporary chat message for return
@@ -55,21 +55,17 @@ def format_chat_stream(chat):
                 
                     mm_image(chat_tmp, file)
     
-    # Prepare return values
-    res = [chat_tmp]
-    
-    # Expand content["txt"] if exists
+    # Append text file content to the original user message's content
     if (chat_tmp.get("txt")):
         
         for txt_msg in chat_tmp["txt"]:
             
-            res.append({
-                "role":     "user", 
-                "content":  txt_msg
-            })
-            
+            chat_tmp["content"] += txt_msg
+        
+        del chat_tmp["txt"]
+    
     # Return result as a list
-    return(res)
+    return([chat_tmp])
 
 def format_chat_upload(chat):
     """
@@ -147,16 +143,16 @@ def mm_text_stream(chat, path):
             
         # Create message
         txt_msg = f"""
-File name: [{name}]
 
-Content:
+---[Attached File: {name}]---
 
 {content}
 
-        """
+---[End of File: {name}]---
+"""
         
-        # Append message to content["txt"] list (create this list if it does not exist)
-        # This list will be processed in the end to create separated user messages.
+        # Append message to chat["txt"] list (create this list if it does not exist)
+        # This list will be appended to the original user message content.
         if (chat.get("txt")):
             
             chat["txt"].append(txt_msg)
