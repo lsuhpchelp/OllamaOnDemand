@@ -728,12 +728,10 @@ class UIBuilderMixin:
             # Table 3: About
             with gr.Tab("About", elem_classes=["settings-padding"]):
                 
-                # Get Ollama version
+                # Get Ollama version via HTTP request
                 try:
-                    ollama_version = subprocess.run(
-                        ["ollama", "--version"],
-                        capture_output=True, text=True, timeout=5
-                    ).stdout.strip()
+                    url = "http://" + self.args.ollama_host if not self.args.ollama_host.startswith(("http://", "https://")) else self.args.ollama_host
+                    ollama_version = requests.get(url + "/api/version", timeout=5).json().get("version", "(Unknown)")
                 except Exception:
                     ollama_version = "(Unknown)"
                 
