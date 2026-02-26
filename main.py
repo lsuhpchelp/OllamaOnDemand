@@ -1258,8 +1258,10 @@ class BuildRight:
                 except requests.RequestException:
                     pass
                 
-                gr.Markdown(f"**Ollama OnDemand version:** {__version__}")
-                gr.Markdown(f"**Ollama version:** {ollama_version}")
+                gr.Markdown("### Ollama OnDemand version")
+                gr.Markdown(f"{__version__}")
+                gr.Markdown("### Ollama version")
+                gr.Markdown(f"{ollama_version}")
 
     def register_right(self):
         """
