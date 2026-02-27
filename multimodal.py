@@ -19,7 +19,7 @@ def format_chat_stream(chat):
     Input:
         chat:           An OpenAI style chat message dictionary
     Output: 
-        [chat,...]:     A list of chat messages (possibly more than one, as pure text will be submitted as separated messages)
+        [chat,...]:     A list of chat messages (possibly more than one, as pure text will be submitted as separated messages for resilience)
     """
     
     # Create a temporary chat message for return
@@ -147,11 +147,12 @@ def mm_text_stream(chat, path):
             
         # Create message
         txt_msg = f"""
-File name: [{name}]
 
-Content:
+---[Attached File: {name}]---
 
 {content}
+
+---[End of File: {name}]---
 
         """
         
