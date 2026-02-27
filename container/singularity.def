@@ -51,7 +51,7 @@ wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge
     . /opt/miniforge3/bin/activate
 
 # Install Gradio
-pip install gradio==5.49.1 ollama==0.6.1 humanize PyMuPDF binaryornot
+pip install gradio==6.8.0 ollama==0.6.1 humanize PyMuPDF binaryornot
 
 # Pull remote models at the time of creating the container
 cd /opt/OllamaOnDemand/
