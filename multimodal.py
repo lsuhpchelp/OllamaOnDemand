@@ -55,15 +55,6 @@ def format_chat_stream(chat):
                 
                     mm_image(chat_tmp, file)
     
-    # Append text file content to the original user message's content
-    if (chat_tmp.get("txt")):
-        
-        for txt_msg in chat_tmp["txt"]:
-            
-            chat_tmp["content"] += txt_msg
-        
-        del chat_tmp["txt"]
-    
     # Return result as a list
     return([chat_tmp])
 
@@ -151,15 +142,8 @@ def mm_text_stream(chat, path):
 ---[End of File: {name}]---
 """
         
-        # Append message to chat["txt"] list (create this list if it does not exist)
-        # This list will be appended to the original user message content.
-        if (chat.get("txt")):
-            
-            chat["txt"].append(txt_msg)
-            
-        else:
-            
-            chat["txt"] = [txt_msg]
+        # Directly append text file content to the original user message
+        chat["content"] += txt_msg
         
     except Exception:
         
