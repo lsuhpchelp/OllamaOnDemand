@@ -19,7 +19,7 @@ def format_chat_stream(chat):
     Input:
         chat:           An OpenAI style chat message dictionary
     Output: 
-        [chat]:         A list containing a single chat message with text file contents appended to the original content
+        chat:           A single chat message with text file contents appended to the original content
     """
     
     # Create a temporary chat message for return
@@ -55,8 +55,8 @@ def format_chat_stream(chat):
                 
                     mm_image(chat_tmp, file)
     
-    # Return result as a list
-    return([chat_tmp])
+    # Return result
+    return(chat_tmp)
 
 def format_chat_upload(chat):
     """

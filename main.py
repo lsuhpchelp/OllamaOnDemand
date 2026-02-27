@@ -223,7 +223,7 @@ class MiscUtils:
             # Format user message
             if (chat["role"] == "user"):
             
-                chat_history += mm.format_chat_stream(chat)
+                chat_history.append(mm.format_chat_stream(chat))
             
             else:
                 
