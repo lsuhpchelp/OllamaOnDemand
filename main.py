@@ -1704,8 +1704,7 @@ class BuildMain:
             self.gr_main.chatbot = gr.Chatbot(
                 height=None,
                 show_label=False,
-                type="messages",
-                show_copy_button=True,
+                buttons=["copy", "copy_all"],
                 group_consecutive_messages=False,
                 editable="user",
                 allow_tags=True,
@@ -1958,14 +1957,8 @@ class OllamaOnDemandUI(MiscUtils, BuildLeft, BuildRight, BuildMain):
             None
         """
         
-        # Set page icon
-        set_icon = f"<link rel='icon' type='image/png' href='gradio_api/file={self.current_path}/images/logo.png'>\n\n"
-        
         with gr.Blocks(
-            css_paths   = self.current_path+'/grblocks.css',
             title       = "Ollama OnDemand",
-            head        = set_icon,
-            head_paths  = self.current_path+'/head.html'
         ) as self.demo:
             
             #----------------------------------------------------------
@@ -2041,7 +2034,10 @@ class OllamaOnDemandUI(MiscUtils, BuildLeft, BuildRight, BuildMain):
             server_name=self.args.host,
             server_port=self.args.port,
             root_path=self.args.root_path,
-            allowed_paths=[self.current_path]
+            allowed_paths=[self.current_path],
+            css_paths=self.current_path+'/grblocks.css',
+            head=f"<link rel='icon' type='image/png' href='gradio_api/file={self.current_path}/images/logo.png'>\n\n",
+            head_paths=self.current_path+'/head.html'
         )
 
 
