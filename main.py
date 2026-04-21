@@ -27,8 +27,6 @@ args = get_args()
 os.environ["GRADIO_TEMP_DIR"] = args.workdir + "/cache"
 import gradio as gr
 
-
-
 # Model used for auto-generating chat titles
 TITLE_MODEL = "gemma3:4b"
 
@@ -390,7 +388,7 @@ class BuildLeft:
                         break
                 
                 words = first_user_content.split()
-                new_title = " ".join(words[:10]) if words else "New Chat"
+                new_title = (" ".join(words[:10]) if words else "New Chat") + "..."
             
             self.chat_title = new_title
             cs.set_chat_title(self.chat_index, new_title)
