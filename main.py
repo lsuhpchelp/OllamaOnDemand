@@ -30,7 +30,7 @@ import gradio as gr
 
 
 # Model used for auto-generating chat titles
-TITLE_MODEL = "gemma3:3b"
+TITLE_MODEL = "gemma3:4b"
 
 #======================================================================
 # Misc utilities
