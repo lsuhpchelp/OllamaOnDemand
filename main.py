@@ -358,8 +358,6 @@ class BuildLeft:
         # If current chat does not have a title, ask client to summarize and generate one.
         if self.chat_title == "New Chat":
             
-            new_title = None
-            
             # Attempt to auto-generate a title using TITLE_MODEL
             try:
                 
@@ -377,11 +375,8 @@ class BuildLeft:
                 new_title = re.sub(r"<think>.*?</think>", "", new_title, flags=re.DOTALL).strip()
                 
             except Exception:
-                pass
-            
-            # Fall back: use the first 10 words of the first user message as the title
-            if not new_title:
                 
+                # Fall back: use the first 10 words of the first user message as the title
                 first_user_content = ""
                 for msg in self.chat_history:
                     if msg.get("role") == "user":
