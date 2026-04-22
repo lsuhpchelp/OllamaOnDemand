@@ -11,6 +11,7 @@ import time
 import html
 import re
 import shutil
+import threading
 import ollama
 from typing import Literal
 import chatsessions as cs
@@ -25,8 +26,6 @@ from arg import get_args, __version__
 args = get_args()
 os.environ["GRADIO_TEMP_DIR"] = args.workdir + "/cache"
 import gradio as gr
-
-
 
 #======================================================================
 # Misc utilities
@@ -356,19 +355,38 @@ class BuildLeft:
         # If current chat does not have a title, ask client to summarize and generate one.
         if self.chat_title == "New Chat":
             
-            # Generate a chat title, but do not alter chat_history
-            response = self.client.chat(
-                model = self.settings["model_selected"],
-                messages = self.chat_history + \
-                    [ { "role": "user", 
-                        "content": "Summarize this entire conversation with less than six words. Be objective and formal (Don't use first person expression). No punctuation."} ],
-                stream = False
-            )
+            # Attempt to auto-generate a title using TITLE_MODEL
+            try:
+                
+                response = self.client.chat(
+                    model = self.args.title_model,
+                    messages = self.chat_history + \
+                        [ { "role": "user", 
+                            "content": "Summarize this entire conversation with less than six words. Be objective and formal (Don't use first person expression). No punctuation."} ],
+                    stream = False
+                )
+                
+                # Set new title
+                #   Generating and removing <think>*</think> provides the best compatibility between reasoning model and non-reasoning model.
+                new_title = response.message.content
+                new_title = re.sub(r"<think>.*?</think>", "", new_title, flags=re.DOTALL).strip()
+                
+            except Exception:
+                
+                # Fall back: use the first 10 words of the first user message as the title
+                first_user_content = ""
+                for msg in self.chat_history:
+                    if msg.get("role") == "user":
+                        content = msg.get("content", "")
+                        if isinstance(content, list):
+                            # Multimodal: extract plain text parts
+                            content = " ".join(part.get("text", "") for part in content if isinstance(part, dict) and part.get("type") == "text")
+                        first_user_content = content
+                        break
+                
+                words = first_user_content.split()
+                new_title = (" ".join(words[:10]) if words else "New Chat") + "..."
             
-            # Set new title
-            #   Generating and removing <think>*</think> provides the best compatibility between reasoning model and non-reasoning model.
-            new_title = response.message.content
-            new_title = re.sub(r"<think>.*?</think>", "", new_title, flags=re.DOTALL).strip()
             self.chat_title = new_title
             cs.set_chat_title(self.chat_index, new_title)
             
@@ -754,6 +772,9 @@ class BuildRight:
                 
                 # Set writability
                 self.gr_rightbar.is_model_path_writable = True
+                
+                # Preload title model on the new server
+                threading.Thread(target=self.preload_title_model, daemon=True).start()
             
         # If not writable
         else:
@@ -791,6 +812,9 @@ class BuildRight:
                     
                     # Set writability
                     self.gr_rightbar.is_model_path_writable = False
+                    
+                    # Preload title model on the new server
+                    threading.Thread(target=self.preload_title_model, daemon=True).start()
                 
             # If not, reset model path and raise error
             else:
@@ -1868,6 +1892,9 @@ class OllamaOnDemandUI(MiscUtils, BuildLeft, BuildRight, BuildMain):
         if (not self.settings.get("model_selected") in self.models):
             self.settings["model_selected"] = self.models[0]
         
+        # Preload the title-generation model in a background thread
+        threading.Thread(target=self.preload_title_model, daemon=True).start()
+        
         # Gradio components deposit
         self.gr_main = GradioComponents()           # Main view
         self.gr_leftbar = GradioComponents()        # Left sidebar
@@ -1877,8 +1904,8 @@ class OllamaOnDemandUI(MiscUtils, BuildLeft, BuildRight, BuildMain):
         
         # Compile regular expression for think tag replacement for display
         self.think_tags = {
-            "head":    "<div class='thinking-block'><details open class='thinking'><summary><i><b>(Thinking...)</b></summary>\n\n<br>",
-            "tail":    "</i></details></div><br>\n\n"
+            "head":    "<div class='thinking-block'><details open class='thinking'><summary><i><b>(Thinking...)</b></summary>\n\n<br>\n",
+            "tail":    "\n</i></details></div><br>\n\n"
         }
 
     #------------------------------------------------------------------
@@ -1943,6 +1970,48 @@ class OllamaOnDemandUI(MiscUtils, BuildLeft, BuildRight, BuildMain):
         """
         if type=="ollama":
             return ollama.Client(host=self.args.ollama_host)
+
+    def preload_title_model(self):
+        """
+        Ensure the title-generation model (TITLE_MODEL) is available and loaded in memory
+        indefinitely so it is ready for fast chat-title generation.
+
+        Logic:
+            1. If TITLE_MODEL is already installed, load it with keep_alive=-1.
+            2. If not installed, attempt to pull it, then load it with keep_alive=-1.
+            3. If pulling fails, do nothing.
+        
+        Input:
+            None
+        Output:
+            None
+        """
+        
+        try:
+            
+            # Pull the model if it is not already installed
+            if self.args.title_model not in self.models:
+                
+                print(f"Title model '{self.args.title_model}' not found. Attempting to pull...")
+                
+                try:
+                    for _ in self.client.pull(self.args.title_model, stream=True):
+                        pass
+                    print(f"Title model '{self.args.title_model}' pulled successfully.")
+                    
+                    # Refresh installed model list
+                    self.models = self.list_installed_models()
+                    
+                except Exception as e:
+                    print(f"Failed to pull title model '{self.args.title_model}': {e}")
+                    return
+            
+            # Load the model and keep it alive indefinitely
+            self.client.generate(model=self.args.title_model, prompt="", keep_alive=-1)
+            print(f"Title model '{self.args.title_model}' loaded and kept alive in memory.")
+            
+        except Exception as e:
+            print(f"Could not preload title model '{self.args.title_model}': {e}")
 
     #------------------------------------------------------------------
     # Build UI
