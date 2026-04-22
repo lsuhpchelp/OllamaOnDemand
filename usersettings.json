@@ -166,8 +166,7 @@
         "component_init" : {
             "label":                "(Penalty for frequent tokens)",
             "minimum":              -2,
-            "maximum":              2,
-            "show_reset_button":    false
+            "maximum":              2
         }
     },
     {
@@ -178,8 +177,7 @@
             "minimum":              0,
             "maximum":              2,
             "step":                 1,
-            "precision":            0,
-            "show_reset_button":    false
+            "precision":            0
         }
     },
     {
@@ -188,8 +186,7 @@
         "component_init" : {
             "label":                "(Mirostat adaptive sampling learning rate)",
             "minimum":              0,
-            "maximum":              1,
-            "show_reset_button":    false
+            "maximum":              1
         }
     },
     {
@@ -198,8 +195,7 @@
         "component_init" : {
             "label":                "(Mirostat adaptive sampling target perplexity)",
             "minimum":              0,
-            "maximum":              10,
-            "show_reset_button":    false
+            "maximum":              10
         }
     },
     {
@@ -233,8 +229,7 @@
         "component_init" : {
             "label":                "(Penalty for repeating tokens)",
             "minimum":              -2,
-            "maximum":              2,
-            "show_reset_button":    false
+            "maximum":              2
         }
     },
     {
@@ -252,8 +247,7 @@
         "component_init" : {
             "label":                "(Penalizes repeating phrases)",
             "minimum":              0,
-            "maximum":              5,
-            "show_reset_button":    false
+            "maximum":              5
         }
     },
     {
@@ -277,8 +271,7 @@
         "component_init" : { 
             "label":                "(Randomness)",
             "minimum":              0,
-            "maximum":              2,
-            "show_reset_button":    false
+            "maximum":              2
         }
     },
     {
@@ -287,8 +280,7 @@
         "component_init" : {
             "label":                "(Tail-Free Sampling: Trim tokens from tail up to set probability)",
             "minimum":              0,
-            "maximum":              1,
-            "show_reset_button":    false
+            "maximum":              1
         }
     },
     {
@@ -306,8 +298,7 @@
         "component_init" : {
             "label":                "(Nucleus sampling: Keep tokens up to set probability)",
             "minimum":              0,
-            "maximum":              1,
-            "show_reset_button":    false
+            "maximum":              1
         }
     },
     {
@@ -316,8 +307,7 @@
         "component_init" : {
             "label":                "(Typical Sampling: Only keep 'typical' tokens within set probability)",
             "minimum":              0,
-            "maximum":              1,
-            "show_reset_button":    false
+            "maximum":              1
         }
     }
 ]
