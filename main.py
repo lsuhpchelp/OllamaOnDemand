@@ -27,9 +27,6 @@ args = get_args()
 os.environ["GRADIO_TEMP_DIR"] = args.workdir + "/cache"
 import gradio as gr
 
-# Model used for auto-generating chat titles
-TITLE_MODEL = "gemma3:4b"
-
 #======================================================================
 # Misc utilities
 #======================================================================
@@ -362,7 +359,7 @@ class BuildLeft:
             try:
                 
                 response = self.client.chat(
-                    model = TITLE_MODEL,
+                    model = self.args.title_model,
                     messages = self.chat_history + \
                         [ { "role": "user", 
                             "content": "Summarize this entire conversation with less than six words. Be objective and formal (Don't use first person expression). No punctuation."} ],
@@ -1993,28 +1990,28 @@ class OllamaOnDemandUI(MiscUtils, BuildLeft, BuildRight, BuildMain):
         try:
             
             # Pull the model if it is not already installed
-            if TITLE_MODEL not in self.models:
+            if self.args.title_model not in self.models:
                 
-                print(f"Title model '{TITLE_MODEL}' not found. Attempting to pull...")
+                print(f"Title model '{self.args.title_model}' not found. Attempting to pull...")
                 
                 try:
-                    for _ in self.client.pull(TITLE_MODEL, stream=True):
+                    for _ in self.client.pull(self.args.title_model, stream=True):
                         pass
-                    print(f"Title model '{TITLE_MODEL}' pulled successfully.")
+                    print(f"Title model '{self.args.title_model}' pulled successfully.")
                     
                     # Refresh installed model list
                     self.models = self.list_installed_models()
                     
                 except Exception as e:
-                    print(f"Failed to pull title model '{TITLE_MODEL}': {e}")
+                    print(f"Failed to pull title model '{self.args.title_model}': {e}")
                     return
             
             # Load the model and keep it alive indefinitely
-            self.client.generate(model=TITLE_MODEL, prompt="", keep_alive=-1)
-            print(f"Title model '{TITLE_MODEL}' loaded and kept alive in memory.")
+            self.client.generate(model=self.args.title_model, prompt="", keep_alive=-1)
+            print(f"Title model '{self.args.title_model}' loaded and kept alive in memory.")
             
         except Exception as e:
-            print(f"Could not preload title model '{TITLE_MODEL}': {e}")
+            print(f"Could not preload title model '{self.args.title_model}': {e}")
 
     #------------------------------------------------------------------
     # Build UI

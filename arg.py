@@ -76,5 +76,10 @@ def get_args():
         help="Path to Ollama models."
     )
 
+    group_ollama.add_argument(
+        "--title-model", type=str, default="gemma3:4b",
+        help="Model used for auto-generating chat titles."
+    )
+
     return parser.parse_args()
 
