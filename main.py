@@ -775,6 +775,9 @@ class BuildRight:
                 
                 # Set writability
                 self.gr_rightbar.is_model_path_writable = True
+                
+                # Preload title model on the new server
+                threading.Thread(target=self.preload_title_model, daemon=True).start()
             
         # If not writable
         else:
@@ -812,6 +815,9 @@ class BuildRight:
                     
                     # Set writability
                     self.gr_rightbar.is_model_path_writable = False
+                    
+                    # Preload title model on the new server
+                    threading.Thread(target=self.preload_title_model, daemon=True).start()
                 
             # If not, reset model path and raise error
             else:
