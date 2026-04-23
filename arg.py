@@ -78,7 +78,7 @@ def get_args():
 
     group_ollama.add_argument(
         "--title-model", type=str, default="gemma3:4b",
-        help="Model used for auto-generating chat titles."
+        help="A smaller model used for fast auto-generating chat titles."
     )
 
     return parser.parse_args()

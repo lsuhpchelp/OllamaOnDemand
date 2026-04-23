@@ -1,0 +1,19 @@
+---
+name: Ollama OnDemand
+category: Interactive Apps
+subcategory: AI Lab
+role: batch_connect
+description: |
+  A ChatGPT-style, HPC & Open OnDemand friendly web interface designed to run large language models (LLMs) on clusters.
+  
+  ***Term of Use***
+  
+  *By using this application, you acknowledge and agree to the following terms:*
+  
+  - *This application is provided exclusively for research and teaching activities. Any use that falls outside the scope of research or teaching is strictly prohibited, including, but not limited to, commercial exploitation, entertainment, or any unlawful activity.*
+  
+  - *The [INSERT ORGANIZATION NAME] shall not be liable for any direct, indirect, incidental, special, or consequential damages arising from the use of this application. Users are responsible for exercising responsible and ethical conduct at all times while using the application.*
+
+  *By proceeding, you certify that you have read, understood, and agree to be bound by all of the above provisions.*
+  
+  ---

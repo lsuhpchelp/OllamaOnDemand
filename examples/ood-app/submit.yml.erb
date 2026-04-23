@@ -1,0 +1,28 @@
+<%
+
+# Fix job duration
+temp = bc_num_hours                
+bc_num_hours_i = bc_num_hours.to_i
+if bc_num_hours_i > 72
+        bc_num_hours = "72"
+else
+        bc_num_hours = temp
+end
+
+# Other parameters
+native = [
+        "-A", auto_accounts,
+        "-p", auto_queue,
+        "-N", bc_num_slots,
+        "-t", "#{bc_num_hours}:00:00"
+         ]
+         
+%>
+
+---
+
+batch_connect:
+  template: "basic"
+
+script:
+  native: <%= native.inspect %>

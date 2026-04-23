@@ -1,0 +1,66 @@
+cluster: "qbd"
+
+attributes:
+
+  auto_accounts:
+    label: "Computing Allocation"
+    help: "(Choose an allocation to use for this job)"
+
+  auto_queue:
+    label: "Job Queue"
+    help: "(Choose a queue to submitted to)"
+    widget: "select"
+    options:
+      - "single"
+      - "workq"
+      - "gpu2"
+
+  bc_num_hours:
+    label: "Job Duration [Hour]"
+    widget: "number_field"
+    help: |
+      (Enter the job duration in hours)
+    value: 2
+
+  bc_num_slots:
+    label: "Number of Nodes"
+    widget: "number_field"
+    help: "(Enter the number of nodes to be requested. Open OnDemand jobs are currently limited to one node per job)"
+    value: 1
+          
+  work_dir:
+    label: "Ollama OnDemand Cache"
+    widget: "path_selector"
+    help: |
+      (Choose the directory where Ollama Ondemand saves its cache, *e.g.*, chat history, user settings, and multimodal data, *etc*. Use '`Select Path`' button or enter manually.)
+    show_hidden: true
+    show_files: false
+    value: "/work/<%=ENV['USER']%>/.ollama/ondemand"
+    
+  break:
+    label: ""
+    widget: "radio_button"
+    help: |
+      ---
+    
+  break_basic:
+    label: ""
+    widget: "radio_button"
+    help: |
+      ### Basic Settings
+    
+  break_advanced:
+    label: ""
+    widget: "radio_button"
+    help: |
+      ### Advanced Settings
+
+form:
+  - break_basic
+  - auto_accounts
+  - auto_queue
+  - bc_num_hours
+  - bc_num_slots
+  - break_advanced
+  - work_dir
+  - break
