@@ -61,9 +61,10 @@ cd container
 sudo singularity build ollamaondemand.sif singularity.def
 ```
 
-> **AMD GPU (ROCm):** The default recipe uses `ollama/ollama:latest` which targets NVIDIA CUDA GPUs. To target AMD GPUs instead, open `container/singularity.def` and change the `From:` line before building:
-> ```
-> From: ollama/ollama:rocm
+> **AMD GPU (ROCm):** A dedicated recipe for AMD GPUs is provided at `container/singularity-rocm.def`. Build it with:
+> ```bash
+> cd container
+> sudo singularity build ollamaondemand-rocm.sif singularity-rocm.def
 > ```
 
 ### 3.2 Run the container
@@ -167,7 +168,8 @@ Ollama OnDemand/
 ├── images/
 │   └── logo.png          # App logo
 ├── container/
-│   └── singularity.def   # Singularity container recipe
+│   ├── singularity.def       # Singularity container recipe (NVIDIA CUDA)
+│   └── singularity-rocm.def  # Singularity container recipe (AMD ROCm)
 └── examples/
     ├── README.md             # Overview and guidance for choosing an example
     ├── local-setup/          # Notes for a local / standalone setup

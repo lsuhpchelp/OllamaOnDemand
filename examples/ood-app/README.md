@@ -38,10 +38,11 @@ This directory contains a complete [Open OnDemand](https://openondemand.org/) ba
 
 The batch script uses `singularity run --nv` which targets **NVIDIA CUDA GPUs** by default.
 
-**For AMD GPUs (ROCm):** replace `--nv` with `--rocm` in `template/script.sh.erb`, and ensure your container was built from the `ollama/ollama:rocm` base image (change the `From:` line in `container/singularity.def` before building):
+**For AMD GPUs (ROCm):** replace `--nv` with `--rocm` in `template/script.sh.erb`, and ensure you built the container using the dedicated AMD recipe:
 
-```
-From: ollama/ollama:rocm
+```bash
+cd container
+sudo singularity build ollamaondemand-rocm.sif singularity-rocm.def
 ```
 
 ---
