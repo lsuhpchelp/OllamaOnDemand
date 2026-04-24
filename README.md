@@ -13,8 +13,13 @@ A ChatGPT-style web interface for running large language models (LLMs) on HPC cl
 1. [Features](#1-features)
 2. [Requirements](#2-requirements)
 3. [Installation](#3-installation)
+   - [3.1 Build the container](#31-build-the-container)
+   - [3.2 Run the container](#32-run-the-container)
 4. [Command-Line Options](#4-command-line-options)
-5. [Open OnDemand Integration](#5-open-ondemand-integration)
+   - [4.1 Example](#41-example)
+5. [Deployment](#5-deployment)
+   - [5.1 HPC / Open OnDemand Deployment](#51-hpc--open-ondemand-deployment)
+   - [5.2 Local Deployment](#52-local-deployment)
 6. [Directory Layout](#6-directory-layout)
 7. [License](#7-license)
 8. [Author](#8-author)
@@ -84,7 +89,7 @@ singularity run --nv ollamaondemand.sif [OPTIONS]
 | `--debug` | _(off)_ | Enable debug mode |
 | `-v`, `--version` | | Print version and exit |
 
-### Example
+### 4.1 Example
 
 ```bash
 singularity run --nv ollamaondemand.sif \
@@ -96,11 +101,13 @@ singularity run --nv ollamaondemand.sif \
 
 ---
 
-## 5. Open OnDemand Integration
+## 5. Deployment
+
+### 5.1 HPC / Open OnDemand Deployment
 
 A complete Open OnDemand batch-connect app template is located in `examples/ood-app/`. It is designed as a starting point — each HPC system is configured differently, so some adaptation will be required.
 
-### 5.1 Key files
+#### Key files
 
 | File | Purpose |
 |---|---|
@@ -110,12 +117,26 @@ A complete Open OnDemand batch-connect app template is located in `examples/ood-
 | `template/script.sh.erb` | Batch script: finds a free port, starts the Singularity container |
 | `view.html.erb` | Connect button shown to the user once the job is running |
 
-### 5.2 Minimal setup steps
+#### Minimal setup steps
 
 1. Copy `examples/ood-app/` to your OOD apps directory.
 2. Edit `form.yml.erb`: set your cluster name and update the queue/partition list.
 3. Edit `template/script.sh.erb`: set the path to `ollamaondemand.sif` and the shared model directory (if any).
 4. Edit `manifest.yml`: replace `[INSERT ORGANIZATION NAME]` with your institution name in the Terms of Use section.
+
+### 5.2 Local Deployment
+
+To run Ollama OnDemand locally, build the Singularity container (see [Section 3](#3-installation)) and run it with:
+
+```bash
+singularity run /path/to/ollamaondemand.sif
+```
+
+To read help information about all available command-line arguments, run:
+
+```bash
+singularity run /path/to/ollamaondemand.sif --help
+```
 
 ---
 
