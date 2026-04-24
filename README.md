@@ -1,14 +1,27 @@
-# OllamaOnDemand
+# Ollama OnDemand
 
 <p align="center">
-  <img src="images/logo.png" alt="OllamaOnDemand Logo" height="80">
+  <img src="images/logo.png" alt="Ollama OnDemand Logo" height="80">
 </p>
 
-A ChatGPT-style web interface for running large language models (LLMs) on HPC clusters. Built on [Gradio](https://www.gradio.app/) and [Ollama](https://ollama.com/), OllamaOnDemand is designed from the ground up for HPC environments and natively supports [Open OnDemand](https://openondemand.org/) subpath routing.
+A ChatGPT-style web interface for running large language models (LLMs) on HPC clusters. Built on [Gradio](https://www.gradio.app/) and [Ollama](https://ollama.com/), Ollama OnDemand is designed from the ground up for HPC environments and natively supports [Open OnDemand](https://openondemand.org/) subpath routing.
 
 ---
 
-## Features
+## Table of Contents
+
+1. [Features](#1-features)
+2. [Requirements](#2-requirements)
+3. [Installation](#3-installation)
+4. [Command-Line Options](#4-command-line-options)
+5. [Open OnDemand Integration](#5-open-ondemand-integration)
+6. [Directory Layout](#6-directory-layout)
+7. [License](#7-license)
+8. [Author](#8-author)
+
+---
+
+## 1. Features
 
 - **Multi-session chat** — Create, rename, export, and delete independent chat conversations. Chat titles are auto-generated using a small background model.
 - **Multimodal inputs** — Attach images, plain-text files, and PDFs to your messages. PDFs are automatically converted to images for vision-capable models.
@@ -21,54 +34,42 @@ A ChatGPT-style web interface for running large language models (LLMs) on HPC cl
 
 ---
 
-## Requirements
+## 2. Requirements
 
-| Dependency | Version |
-|---|---|
-| Python | ≥ 3.10 (latest recommended) |
-| Ollama | latest |
-| gradio | 5.49.1 |
-| ollama (Python) | 0.6.1 |
-| humanize | any |
-| PyMuPDF | any |
-| binaryornot | any |
-
-GPU access is strongly recommended for reasonable inference performance.
+- [Singularity](https://sylabs.io/) (used to build and run the container)
+- GPU access is strongly recommended for reasonable inference performance.
 
 ---
 
-## Quick Start (local)
+## 3. Installation
 
-### 1. Install Ollama
+Ollama OnDemand is distributed as a Singularity container. A definition file is provided at `container/singularity.def` and bundles Ollama, Miniforge Python, and all required Python packages.
 
-Follow the [Ollama installation guide](https://ollama.com/download) for your platform.
+### 3.1 Build the container
 
-### 2. Install Python dependencies
-
-```bash
-pip install gradio==5.49.1 ollama==0.6.1 humanize PyMuPDF binaryornot
-```
-
-### 3. Pull a model
+> **Important:** The build must be run from inside the `container/` directory so that the `%files` section can copy the project files correctly.
 
 ```bash
-ollama pull llama3.2
+cd container
+sudo singularity build ollamaondemand.sif singularity.def
 ```
 
-### 4. Launch OllamaOnDemand
+### 3.2 Run the container
 
 ```bash
-python main.py
+singularity run --nv ollamaondemand.sif [OPTIONS]
 ```
 
-Open your browser at **http://localhost:7860**.
+The `--nv` flag enables NVIDIA GPU access. See [Section 4](#4-command-line-options) for the full list of available options.
 
 ---
 
-## Command-Line Options
+## 4. Command-Line Options
 
-```
-python main.py [OPTIONS]
+Pass options directly after the `.sif` image name:
+
+```bash
+singularity run --nv ollamaondemand.sif [OPTIONS]
 ```
 
 | Option | Default | Description |
@@ -76,7 +77,7 @@ python main.py [OPTIONS]
 | `--host` | `0.0.0.0` | Host for the Gradio web server |
 | `--port` | `7860` | Port for the Gradio web server |
 | `--root-path` | _(none)_ | Root path / subpath for the web interface (required for Open OnDemand) |
-| `-w`, `--workdir` | `~/.ollama/ondemand` | Directory where OllamaOnDemand stores chat history, settings, and cache |
+| `-w`, `--workdir` | `~/.ollama/ondemand` | Directory where Ollama OnDemand stores chat history, settings, and cache |
 | `--ollama-host` | `127.0.0.1:11434` | Address of the Ollama backend server |
 | `--ollama-models` | `~/.ollama/models` | Path to the Ollama model directory |
 | `--title-model` | `gemma3:4b` | Small model used for fast auto-generation of chat titles |
@@ -86,7 +87,7 @@ python main.py [OPTIONS]
 ### Example
 
 ```bash
-python main.py \
+singularity run --nv ollamaondemand.sif \
     --port 8080 \
     --workdir /scratch/$USER/ollama_ondemand \
     --ollama-models /shared/models/ollama \
@@ -95,34 +96,11 @@ python main.py \
 
 ---
 
-## Singularity Container
-
-A Singularity definition file is provided at `container/singularity.def`. The container bundles Ollama, Miniforge Python, and all Python dependencies.
-
-### Build the container
-
-> **Important:** The build must be run from inside the `container/` directory so that the `%files` section can copy the project files correctly.
-
-```bash
-cd container
-sudo singularity build ollamaondemand.sif singularity.def
-```
-
-### Run the container
-
-```bash
-singularity run --nv ollamaondemand.sif [OPTIONS]
-```
-
-Pass the same command-line options as the Python launcher. The `--nv` flag enables NVIDIA GPU access.
-
----
-
-## Open OnDemand Integration
+## 5. Open OnDemand Integration
 
 A complete Open OnDemand batch-connect app template is located in `examples/ood-app/`. It is designed as a starting point — each HPC system is configured differently, so some adaptation will be required.
 
-### Key files
+### 5.1 Key files
 
 | File | Purpose |
 |---|---|
@@ -132,7 +110,7 @@ A complete Open OnDemand batch-connect app template is located in `examples/ood-
 | `template/script.sh.erb` | Batch script: finds a free port, starts the Singularity container |
 | `view.html.erb` | Connect button shown to the user once the job is running |
 
-### Minimal setup steps
+### 5.2 Minimal setup steps
 
 1. Copy `examples/ood-app/` to your OOD apps directory.
 2. Edit `form.yml.erb`: set your cluster name and update the queue/partition list.
@@ -141,10 +119,10 @@ A complete Open OnDemand batch-connect app template is located in `examples/ood-
 
 ---
 
-## Directory Layout
+## 6. Directory Layout
 
 ```
-OllamaOnDemand/
+Ollama OnDemand/
 ├── main.py               # Application entry point and Gradio UI
 ├── arg.py                # Command-line argument definitions
 ├── chatsessions.py       # Chat session management (load/save/CRUD)
@@ -165,13 +143,13 @@ OllamaOnDemand/
 
 ---
 
-## License
+## 7. License
 
 See [LICENSE](LICENSE) for details.
 
 ---
 
-## Author
+## 8. Author
 
 **Dr. Jason Li** — Louisiana State University HPC  
 jasonli3@lsu.edu
