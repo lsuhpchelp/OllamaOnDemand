@@ -1,7 +1,65 @@
-# Ollama OnDemand App
+# Ollama OnDemand — HPC / Open OnDemand Deployment
 
-This is a sample Open OnDemand app setup for Ollama OnDemand. Please keep in mind that each HPC is configured differently, and there is no universal setup that works for every HPC system. This sample app is for your reference only.
+This directory contains a complete [Open OnDemand](https://openondemand.org/) batch-connect app template for deploying Ollama OnDemand on an HPC cluster. It is designed as a starting point — each HPC system is configured differently, so some adaptation will be required.
 
-## Contributor
+---
 
-Main author: Dr. Jason Li ( jasonli3@lsu.edu )
+## Table of Contents
+
+1. [Key Files](#1-key-files)
+2. [Minimal Setup Steps](#2-minimal-setup-steps)
+3. [GPU Support](#3-gpu-support)
+4. [Notes](#4-notes)
+
+---
+
+## 1. Key Files
+
+| File | Purpose |
+|---|---|
+| `manifest.yml` | App metadata (name, category, description) |
+| `form.yml.erb` | Job submission form (allocation, queue, duration, work directory) |
+| `submit.yml.erb` | Slurm submission parameters |
+| `template/script.sh.erb` | Batch script: finds a free port, starts the Singularity container |
+| `view.html.erb` | Connect button shown to the user once the job is running |
+
+---
+
+## 2. Minimal Setup Steps
+
+1. **Copy the app directory** to your OOD apps directory (typically `/var/www/ood/apps/sys/` or a per-user apps path).
+2. **Edit `form.yml.erb`**: set your cluster name (`cluster:`) and update the queue/partition list under `auto_queue`.
+3. **Edit `template/script.sh.erb`**: replace `/path/to/ollamaondemand.sif` with the actual path to your built container, and update the `--ollama-models` path if you maintain a shared model directory.
+4. **Edit `manifest.yml`**: replace `[INSERT ORGANIZATION NAME]` with your institution name in the Terms of Use section.
+
+---
+
+## 3. GPU Support
+
+The batch script uses `singularity run --nv` which targets **NVIDIA CUDA GPUs** by default.
+
+**For AMD GPUs (ROCm):** replace `--nv` with `--rocm` in `template/script.sh.erb`, and ensure your container was built from the `ollama/ollama:rocm` base image (change the `From:` line in `container/singularity.def` before building):
+
+```
+From: ollama/ollama:rocm
+```
+
+---
+
+## 4. Notes
+
+- The `template/script.sh.erb` script automatically finds a free port for the Gradio web server and passes the correct `--root-path` to Ollama OnDemand so it works behind the Open OnDemand reverse proxy.
+- The script also unsets `ROCR_VISIBLE_DEVICES` to work around a known conflict on some cluster configurations.
+- For the full list of Ollama OnDemand command-line options, see the [main README](../../README.md#4-command-line-options) or run:
+
+  ```bash
+  singularity run /path/to/ollamaondemand.sif --help
+  ```
+
+---
+
+## Author
+
+**Dr. Jason Li** — Louisiana State University HPC  
+jasonli3@lsu.edu
+

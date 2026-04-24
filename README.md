@@ -43,6 +43,8 @@ A ChatGPT-style web interface for running large language models (LLMs) on HPC cl
 
 - [Singularity](https://sylabs.io/) (used to build and run the container)
 - GPU access is strongly recommended for reasonable inference performance.
+  - **NVIDIA GPU:** use the `--nv` flag when running the container (default setup).
+  - **AMD GPU (ROCm):** use the `--rocm` flag and build the container from the `ollama/ollama:rocm` base image (see [Section 3.1](#31-build-the-container)).
 
 ---
 
@@ -59,13 +61,18 @@ cd container
 sudo singularity build ollamaondemand.sif singularity.def
 ```
 
+> **AMD GPU (ROCm):** The default recipe uses `ollama/ollama:latest` which targets NVIDIA CUDA GPUs. To target AMD GPUs instead, open `container/singularity.def` and change the `From:` line before building:
+> ```
+> From: ollama/ollama:rocm
+> ```
+
 ### 3.2 Run the container
 
 ```bash
 singularity run --nv ollamaondemand.sif [OPTIONS]
 ```
 
-The `--nv` flag enables NVIDIA GPU access. See [Section 4](#4-command-line-options) for the full list of available options.
+The `--nv` flag enables NVIDIA GPU access. For AMD GPUs, replace `--nv` with `--rocm`. See [Section 4](#4-command-line-options) for the full list of available options.
 
 ---
 
@@ -129,7 +136,11 @@ A complete Open OnDemand batch-connect app template is located in `examples/ood-
 To run Ollama OnDemand locally, build the Singularity container (see [Section 3](#3-installation)) and run it with:
 
 ```bash
-singularity run /path/to/ollamaondemand.sif
+# NVIDIA GPU
+singularity run --nv /path/to/ollamaondemand.sif
+
+# AMD GPU (ROCm)
+singularity run --rocm /path/to/ollamaondemand.sif
 ```
 
 To read help information about all available command-line arguments, run:
@@ -158,8 +169,9 @@ Ollama OnDemand/
 ├── container/
 │   └── singularity.def   # Singularity container recipe
 └── examples/
-    ├── local-setup/      # Notes for a local / standalone setup
-    └── ood-app/          # Open OnDemand batch-connect app template
+    ├── README.md             # Overview and guidance for choosing an example
+    ├── local-setup/          # Notes for a local / standalone setup
+    └── ood-app/              # Open OnDemand batch-connect app template
 ```
 
 ---
