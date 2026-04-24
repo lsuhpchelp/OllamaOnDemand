@@ -57,23 +57,29 @@ Ollama OnDemand is distributed as a Singularity container. A definition file is 
 > **Important:** The build must be run from inside the `container/` directory so that the `%files` section can copy the project files correctly.
 
 ```bash
+# CPU / NVIDIA GPU
 cd container
 sudo singularity build ollamaondemand.sif singularity.def
-```
 
-> **AMD GPU (ROCm):** A dedicated recipe for AMD GPUs is provided at `container/singularity-rocm.def`. Build it with:
-> ```bash
-> cd container
-> sudo singularity build ollamaondemand-rocm.sif singularity-rocm.def
-> ```
+# AMD GPU (ROCm)
+cd container
+sudo singularity build ollamaondemand-rocm.sif singularity-rocm.def
+```
 
 ### 3.2 Run the container
 
 ```bash
+# CPU only
+singularity run ollamaondemand.sif [OPTIONS]
+
+# NVIDIA GPU
 singularity run --nv ollamaondemand.sif [OPTIONS]
+
+# AMD GPU (ROCm)
+singularity run --rocm ollamaondemand-rocm.sif [OPTIONS]
 ```
 
-The `--nv` flag enables NVIDIA GPU access. For AMD GPUs, replace `--nv` with `--rocm`. See [Section 4](#4-command-line-options) for the full list of available options.
+See [Section 4](#4-command-line-options) for the full list of available options.
 
 ---
 
@@ -137,11 +143,14 @@ A complete Open OnDemand batch-connect app template is located in `examples/ood-
 To run Ollama OnDemand locally, build the Singularity container (see [Section 3](#3-installation)) and run it with:
 
 ```bash
+# CPU only
+singularity run /path/to/ollamaondemand.sif
+
 # NVIDIA GPU
 singularity run --nv /path/to/ollamaondemand.sif
 
 # AMD GPU (ROCm)
-singularity run --rocm /path/to/ollamaondemand.sif
+singularity run --rocm /path/to/ollamaondemand-rocm.sif
 ```
 
 To read help information about all available command-line arguments, run:

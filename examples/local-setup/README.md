@@ -26,15 +26,14 @@ This guide explains how to build and run Ollama OnDemand on a local machine or s
 > **Important:** The build must be run from inside the `container/` directory so that the `%files` section can copy the project files correctly.
 
 ```bash
+# CPU / NVIDIA GPU
 cd container
 sudo singularity build ollamaondemand.sif singularity.def
-```
 
-> **AMD GPU (ROCm):** A dedicated recipe for AMD GPUs is provided at `container/singularity-rocm.def`. Build it with:
-> ```bash
-> cd container
-> sudo singularity build ollamaondemand-rocm.sif singularity-rocm.def
-> ```
+# AMD GPU (ROCm)
+cd container
+sudo singularity build ollamaondemand-rocm.sif singularity-rocm.def
+```
 
 ---
 
@@ -43,11 +42,14 @@ sudo singularity build ollamaondemand.sif singularity.def
 Once the container is built, launch it with:
 
 ```bash
+# CPU only
+singularity run /path/to/ollamaondemand.sif
+
 # NVIDIA GPU
 singularity run --nv /path/to/ollamaondemand.sif
 
 # AMD GPU (ROCm)
-singularity run --rocm /path/to/ollamaondemand.sif
+singularity run --rocm /path/to/ollamaondemand-rocm.sif
 ```
 
 The web interface will be available at `http://localhost:7860` by default.
@@ -56,17 +58,11 @@ The web interface will be available at `http://localhost:7860` by default.
 
 ## 4. GPU Support
 
-| GPU Vendor | Singularity flag | Definition file | Output image |
+| Hardware | Singularity flag | Definition file | Output image |
 |---|---|---|---|
+| CPU only | _(none)_ | `singularity.def` | `ollamaondemand.sif` |
 | NVIDIA (CUDA) | `--nv` | `singularity.def` | `ollamaondemand.sif` |
 | AMD (ROCm) | `--rocm` | `singularity-rocm.def` | `ollamaondemand-rocm.sif` |
-
-To build the AMD ROCm container, run from inside the `container/` directory:
-
-```bash
-cd container
-sudo singularity build ollamaondemand-rocm.sif singularity-rocm.def
-```
 
 ---
 
