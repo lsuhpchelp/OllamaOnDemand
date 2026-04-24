@@ -1,7 +1,7 @@
 # Ollama OnDemand
 
 <p align="center">
-  <img src="images/logo.png" alt="Ollama OnDemand Logo" height="80">
+  <img src="images/logo.png" alt="Ollama OnDemand Logo" height="300">
 </p>
 
 A ChatGPT-style web interface for running large language models (LLMs) on HPC clusters. Built on [Gradio](https://www.gradio.app/) and [Ollama](https://ollama.com/), Ollama OnDemand is designed from the ground up for HPC environments and natively supports [Open OnDemand](https://openondemand.org/) subpath routing.
@@ -41,7 +41,7 @@ A ChatGPT-style web interface for running large language models (LLMs) on HPC cl
 
 ## 2. Requirements
 
-- [Singularity](https://sylabs.io/) (used to build and run the container)
+- [Singularity](https://sylabs.io/) or [Apptainer](https://apptainer.org/) (used to build and run the container)
 - GPU access is strongly recommended for reasonable inference performance.
   - **NVIDIA GPU:** use the `--nv` flag when running the container (default setup).
   - **AMD GPU (ROCm):** use the `--rocm` flag and build the container from the `ollama/ollama:rocm` base image (see [Section 3.1](#31-build-the-container)).
@@ -50,7 +50,7 @@ A ChatGPT-style web interface for running large language models (LLMs) on HPC cl
 
 ## 3. Installation
 
-Ollama OnDemand is distributed as a Singularity container. A definition file is provided at `container/singularity.def` and bundles Ollama, Miniforge Python, and all required Python packages.
+Ollama OnDemand is distributed as a Singularity/Apptainer container. A recipe is provided at `container/singularity.def` and bundles Ollama, Miniforge Python, and all required Python packages.
 
 ### 3.1 Build the container
 
@@ -59,11 +59,11 @@ Ollama OnDemand is distributed as a Singularity container. A definition file is 
 ```bash
 # CPU / NVIDIA GPU
 cd container
-sudo singularity build ollamaondemand.sif singularity.def
+singularity build ollamaondemand.sif singularity.def
 
 # AMD GPU (ROCm)
 cd container
-sudo singularity build ollamaondemand-rocm.sif singularity-rocm.def
+singularity build ollamaondemand-rocm.sif singularity-rocm.def
 ```
 
 ### 3.2 Run the container
@@ -86,10 +86,6 @@ See [Section 4](#4-command-line-options) for the full list of available options.
 ## 4. Command-Line Options
 
 Pass options directly after the `.sif` image name:
-
-```bash
-singularity run --nv ollamaondemand.sif [OPTIONS]
-```
 
 | Option | Default | Description |
 |---|---|---|
@@ -134,9 +130,10 @@ A complete Open OnDemand batch-connect app template is located in `examples/ood-
 #### Minimal setup steps
 
 1. Copy `examples/ood-app/` to your OOD apps directory.
-2. Edit `form.yml.erb`: set your cluster name and update the queue/partition list.
-3. Edit `template/script.sh.erb`: set the path to `ollamaondemand.sif` and the shared model directory (if any).
-4. Edit `manifest.yml`: replace `[INSERT ORGANIZATION NAME]` with your institution name in the Terms of Use section.
+2. Edit `form.yml.erb`: set your cluster name and update the queue/partition list, and add additional options appropriate to your HPC system.
+3. Edit `submit.yml.erb`: set your job submission script. In this sample app, Slurm is set up as the job scheduler.
+4. Edit `manifest.yml`: set app information as appropriate to your HPC system.
+5. Edit `template/script.sh.erb`: set the path to Ollama OnDemand container and adjust other Ollama OnDemand command-line options as appropriate to your HPC system.
 
 ### 5.2 Local Deployment
 
