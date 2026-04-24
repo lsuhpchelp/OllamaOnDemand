@@ -1,0 +1,67 @@
+Bootstrap: docker
+From: ollama/ollama:rocm
+
+
+################################################################################
+%labels
+################################################################################
+
+Maintainer      Jason Li
+Version         1.0.0
+Description     Ollama OnDemand official Singularity recipe (for AMD GPUs)
+
+
+################################################################################
+%environment
+################################################################################
+
+export PATH=/opt/miniforge3/bin:$PATH
+
+
+################################################################################
+%files
+################################################################################
+
+../* /opt/OllamaOnDemand/
+
+
+################################################################################
+%setup
+################################################################################
+
+echo "
+WARNING: This recipe must be built in its containing directory! "
+
+
+################################################################################
+%post
+################################################################################
+
+# Install packages
+apt update && \
+    apt install -y wget git libreoffice && \
+    apt clean
+
+# Install Miniforge (latest Python for latest Gradio version)
+cd /opt
+wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh && \
+    bash Miniforge3-Linux-x86_64.sh -b -p /opt/miniforge3/ && \
+    rm Miniforge3-Linux-x86_64.sh && \
+    /opt/miniforge3/bin/conda init bash && \
+    . /opt/miniforge3/bin/activate
+
+# Install Gradio
+pip install gradio==5.49.1 ollama==0.6.1 humanize PyMuPDF binaryornot
+
+# Pull remote models at the time of creating the container
+cd /opt/OllamaOnDemand/
+python remotemodels.py
+
+# Clone Ollama OnDemand GitHub repo
+#cd /opt && git clone https://github.com/lsuhpchelp/OllamaOnDemand
+
+################################################################################
+%runscript
+################################################################################
+
+python -u /opt/OllamaOnDemand/main.py "$@"
