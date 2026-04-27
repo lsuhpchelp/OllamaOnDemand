@@ -43,8 +43,8 @@ A ChatGPT-style web interface for running large language models (LLMs) on HPC cl
 
 - [Singularity](https://sylabs.io/) or [Apptainer](https://apptainer.org/) (used to build and run the container)
 - GPU access is strongly recommended for reasonable inference performance.
-  - **NVIDIA GPU:** use the `--nv` flag when running the container (default setup).
-  - **AMD GPU (ROCm):** use the `--rocm` flag and build the container from the `ollama/ollama:rocm` base image (see [Section 3.1](#31-build-the-container)).
+  - **NVIDIA GPU (CUDA)**: use the `--nv` flag when running the container (Default).
+  - **AMD GPU (ROCm)**: use the `--rocm` flag and build the container with `container/ollamaondemand-rocm.sif` (see [Section 3.1](#31-build-the-container)).
 
 ---
 
@@ -87,17 +87,17 @@ See [Section 4](#4-command-line-options) for the full list of available options.
 
 Pass options directly after the `.sif` image name:
 
-| Option | Default | Description |
-|---|---|---|
-| `--host` | `0.0.0.0` | Host for the Gradio web server |
-| `--port` | `7860` | Port for the Gradio web server |
-| `--root-path` | _(none)_ | Root path / subpath for the web interface (required for Open OnDemand) |
+| Option            | Default              | Description                                                              |
+| ----------------- | -------------------- | ------------------------------------------------------------------------ |
+| `--host`          | `0.0.0.0`            | Host for the Gradio web server                                           |
+| `--port`          | `7860`               | Port for the Gradio web server                                           |
+| `--root-path`     | _(none)_             | Root path / subpath for the web interface (required for Open OnDemand)   |
 | `-w`, `--workdir` | `~/.ollama/ondemand` | Directory where Ollama OnDemand stores chat history, settings, and cache |
-| `--ollama-host` | `127.0.0.1:11434` | Address of the Ollama backend server |
-| `--ollama-models` | `~/.ollama/models` | Path to the Ollama model directory |
-| `--title-model` | `gemma3:4b` | Small model used for fast auto-generation of chat titles |
-| `--debug` | _(off)_ | Enable debug mode |
-| `-v`, `--version` | | Print version and exit |
+| `--ollama-host`   | `127.0.0.1:11434`    | Address of the Ollama backend server                                     |
+| `--ollama-models` | `~/.ollama/models`   | Path to the Ollama model directory                                       |
+| `--title-model`   | `gemma3:4b`          | Small model used for fast auto-generation of chat titles                 |
+| `--debug`         | _(off)_              | Enable debug mode                                                        |
+| `-v`, `--version` |                      | Print version and exit                                                   |
 
 ### 4.1 Example
 
@@ -119,13 +119,13 @@ A complete Open OnDemand batch-connect app template is located in `examples/ood-
 
 #### Key files
 
-| File | Purpose |
-|---|---|
-| `manifest.yml` | App metadata (name, category, description) |
-| `form.yml.erb` | Job submission form (allocation, queue, duration, work directory) |
-| `submit.yml.erb` | Slurm submission parameters |
-| `template/script.sh.erb` | Batch script: finds a free port, starts the Singularity container |
-| `view.html.erb` | Connect button shown to the user once the job is running |
+| File                     | Purpose                                                                                                        |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `manifest.yml`           | App metadata (name, category, description)                                                                     |
+| `form.yml.erb`           | Job submission form (allocation, queue, duration, work directory)                                              |
+| `submit.yml.erb`         | Slurm submission parameters                                                                                    |
+| `view.html.erb`          | Connect button shown to the user once the job is running                                                       |
+| `template/script.sh.erb` | The main script to run after job starts: finds a free port to start Ollama server, then starts the web service |
 
 #### Minimal setup steps
 
@@ -133,7 +133,7 @@ A complete Open OnDemand batch-connect app template is located in `examples/ood-
 2. Edit `form.yml.erb`: set your cluster name and update the queue/partition list, and add additional options appropriate to your HPC system.
 3. Edit `submit.yml.erb`: set your job submission script. In this sample app, Slurm is set up as the job scheduler.
 4. Edit `manifest.yml`: set app information as appropriate to your HPC system.
-5. Edit `template/script.sh.erb`: set the path to Ollama OnDemand container and adjust other Ollama OnDemand command-line options as appropriate to your HPC system.
+5. Edit `template/script.sh.erb`: set the path to Ollama OnDemand container, adjust other Ollama OnDemand command-line options, and edit other parts of the script as appropriate to your HPC system.
 
 ### 5.2 Local Deployment
 
