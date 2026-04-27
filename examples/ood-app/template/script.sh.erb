@@ -4,6 +4,7 @@
 module purge
 
 # Unset incorrect ROCR settings that causes Ollama not to use GPU
+# You may or may not need this depending on your system setting, or if you use AMD GPU
 unset ROCR_VISIBLE_DEVICES
 
 # -------------------------------------------
