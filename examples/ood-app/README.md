@@ -20,17 +20,18 @@ This directory contains a complete [Open OnDemand](https://openondemand.org/) ba
 | `manifest.yml` | App metadata (name, category, description) |
 | `form.yml.erb` | Job submission form (allocation, queue, duration, work directory) |
 | `submit.yml.erb` | Slurm submission parameters |
-| `template/script.sh.erb` | Batch script: finds a free port, starts the Singularity container |
 | `view.html.erb` | Connect button shown to the user once the job is running |
+| `template/script.sh.erb` | The main script to run after job starts: finds a free port to start Ollama server, then starts the web service |
 
 ---
 
 ## 2. Minimal Setup Steps
 
 1. **Copy the app directory** to your OOD apps directory (typically `/var/www/ood/apps/sys/` or a per-user apps path).
-2. **Edit `form.yml.erb`**: set your cluster name (`cluster:`) and update the queue/partition list under `auto_queue`.
-3. **Edit `template/script.sh.erb`**: replace `/path/to/ollamaondemand.sif` with the actual path to your built container, and update the `--ollama-models` path if you maintain a shared model directory.
-4. **Edit `manifest.yml`**: replace `[INSERT ORGANIZATION NAME]` with your institution name in the Terms of Use section.
+2. **Edit `form.yml.erb`**: set your cluster name and update the queue/partition list, and add additional options appropriate to your HPC system.
+3. **Edit `submit.yml.erb`**: set your job submission script. In this sample app, Slurm is set up as the job scheduler.
+4. **Edit `manifest.yml`**: set app information as appropriate to your HPC system.
+5. **Edit `template/script.sh.erb`**: set the path to the Ollama OnDemand container, adjust other Ollama OnDemand command-line options, and edit other parts of the script as appropriate to your HPC system.
 
 ---
 
@@ -42,7 +43,7 @@ The batch script uses `singularity run --nv` which targets **NVIDIA CUDA GPUs** 
 
 ```bash
 cd container
-sudo singularity build ollamaondemand-rocm.sif singularity-rocm.def
+singularity build ollamaondemand-rocm.sif singularity-rocm.def
 ```
 
 ---
