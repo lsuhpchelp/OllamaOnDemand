@@ -81,5 +81,10 @@ def get_args():
         help="A smaller model used for fast auto-generating chat titles."
     )
 
+    group_ollama.add_argument(
+        "--model-filter", type=str, default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "remotemodels_filter.json"),
+        help="Path to the JSON file defining the remote model filter."
+    )
+
     return parser.parse_args()
 

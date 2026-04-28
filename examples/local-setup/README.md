@@ -83,6 +83,7 @@ singularity run --nv ollamaondemand.sif [OPTIONS]
 | `--ollama-host` | `127.0.0.1:11434` | Address of the Ollama backend server |
 | `--ollama-models` | `~/.ollama/models` | Path to the Ollama model directory |
 | `--title-model` | `gemma3:4b` | Small model used for auto-generating chat titles |
+| `--model-filter` | `remotemodels_filter.json` | Path to a JSON file that filters which remote models are shown in the UI. See `remotemodels_filter.json` for instructions |
 | `--debug` | _(off)_ | Enable debug mode |
 | `-v`, `--version` | | Print version and exit |
 

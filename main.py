@@ -145,8 +145,7 @@ class MiscUtils:
             # If still failed, pull from remote server, and save in user's work directory for future loading
             if (not models):
                 
-                models = rm.dict_all_models()
-                models = rm.filter_models(self.current_path, models)
+                models = rm.dict_all_models(self.args.model_filter)
                 
                 rm.save_model_list(self.args.workdir, models)
                 
