@@ -5,12 +5,12 @@ import os, re
 import requests
 import json
 
-def dict_all_models():
+def dict_all_models(filter=None):
     """
-    List all remote models from ollama.com in dictionary form.
+    List all remote models from ollama.com in dictionary form, with optional filtering.
     
     Input:
-        None
+        filter:     Path to the JSON file defining the filter (optional)
     Output: 
         models:     Dictionary like {"model_name": ["tag1", "tag2", ...], ...}
     """
@@ -33,6 +33,10 @@ def dict_all_models():
         else:
             
             break
+    
+    # Apply filter if provided
+    if filter is not None:
+        models = filter_models(filter, models)
     
     # Return result
     return(models)
@@ -82,9 +86,9 @@ def dict_page_models(page):
     # Return results
     return(models)
 
-def filter_models(workdir, models):
+def filter_models(filter, models):
     """
-    Filter the model list using rules defined in "remotemodels_filter.json".
+    Filter the model list using rules defined in a JSON filter file.
     
     The filter file contains two keys:
         "allow":    List of regex patterns. If non-empty, only model names matching
@@ -93,7 +97,7 @@ def filter_models(workdir, models):
                     non-empty, model names matching any pattern are removed.
     
     Input:
-        workdir:    Directory that contains "remotemodels_filter.json"
+        filter:     Path to the JSON file defining the filter
         models:     Dictionary like {"model_name": ["tag1", "tag2", ...], ...}
     Output:
         models:     Filtered dictionary with the same structure
@@ -101,8 +105,7 @@ def filter_models(workdir, models):
 
     # Attempt to load the filter definition file
     try:
-        file_path = os.path.join(workdir, "remotemodels_filter.json")
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(filter, "r", encoding="utf-8") as f:
             filter_rules = json.load(f)
     except Exception:
         # If the file cannot be read, return the model list unchanged
@@ -178,7 +181,6 @@ def load_model_list(workdir):
 if __name__ == "__main__":
 
     # Fetch all remote models, apply the filter, then save the result
-    models = dict_all_models()
-    models = filter_models(".", models)
+    models = dict_all_models("remotemodels_filter.json")
     save_model_list(".", models)
     
