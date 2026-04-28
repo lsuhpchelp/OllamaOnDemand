@@ -11,7 +11,9 @@
     "allow": [],
     
     "block": [
-        "deepseek"
+        "deepseek",
+        "deepcoder",
+        "deepscaler"
     ]
     
 }
