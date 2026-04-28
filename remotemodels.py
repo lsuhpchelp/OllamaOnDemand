@@ -82,6 +82,52 @@ def dict_page_models(page):
     # Return results
     return(models)
 
+def filter_models(workdir, models):
+    """
+    Filter the model list using rules defined in "remotemodels_filter.json".
+    
+    The filter file contains two keys:
+        "allow":    List of regex patterns. If non-empty, only model names matching
+                    at least one pattern are kept; the "block" list is ignored.
+        "block":    List of regex patterns. If "allow" is empty and "block" is
+                    non-empty, model names matching any pattern are removed.
+    
+    Input:
+        workdir:    Directory that contains "remotemodels_filter.json"
+        models:     Dictionary like {"model_name": ["tag1", "tag2", ...], ...}
+    Output:
+        models:     Filtered dictionary with the same structure
+    """
+
+    # Attempt to load the filter definition file
+    try:
+        file_path = os.path.join(workdir, "remotemodels_filter.json")
+        with open(file_path, "r", encoding="utf-8") as f:
+            filter_rules = json.load(f)
+    except Exception:
+        # If the file cannot be read, return the model list unchanged
+        return(models)
+
+    # Retrieve allow and block pattern lists (default to empty lists if absent)
+    allow_patterns = filter_rules.get("allow", [])
+    block_patterns = filter_rules.get("block", [])
+
+    # Apply allow filter: keep only models whose names match at least one allow pattern
+    if allow_patterns:
+        models = {
+            name: tags for name, tags in models.items()
+            if any(re.search(pattern, name) for pattern in allow_patterns)
+        }
+
+    # Apply block filter (only when allow is empty): remove models matching any block pattern
+    elif block_patterns:
+        models = {
+            name: tags for name, tags in models.items()
+            if not any(re.search(pattern, name) for pattern in block_patterns)
+        }
+
+    return(models)
+
 def save_model_list(workdir, models):
     """
     Save model list in work directory.
@@ -130,6 +176,9 @@ def load_model_list(workdir):
     
 
 if __name__ == "__main__":
-    
-    save_model_list(".", dict_all_models())
+
+    # Fetch all remote models, apply the filter, then save the result
+    models = dict_all_models()
+    models = filter_models(".", models)
+    save_model_list(".", models)
     

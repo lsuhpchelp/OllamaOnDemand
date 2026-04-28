@@ -1,0 +1,19 @@
+{
+    "_instructions": [
+        "Filter rules applied to the remote model list fetched from ollama.com.",
+        "Both 'allow' and 'block' accept lists of Python regex patterns matched against model names.",
+        "Logic:",
+        "  - If 'allow' is non-empty: keep ONLY models matching at least one allow pattern (block is ignored).",
+        "  - If 'allow' is empty and 'block' is non-empty: remove models matching any block pattern.",
+        "  - If both are empty: no filtering is applied."
+    ],
+    
+    "allow": [],
+    
+    "block": [
+        "deepseek",
+        "deepcoder",
+        "deepscaler"
+    ]
+    
+}

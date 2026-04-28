@@ -146,6 +146,7 @@ class MiscUtils:
             if (not models):
                 
                 models = rm.dict_all_models()
+                models = rm.filter_models(self.current_path, models)
                 
                 rm.save_model_list(self.args.workdir, models)
                 
