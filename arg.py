@@ -82,7 +82,7 @@ def get_args():
     )
 
     group_ollama.add_argument(
-        "--remote-filter", type=str, default="remotemodels_filter.json",
+        "--model-filter", type=str, default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "remotemodels_filter.json"),
         help="Path to the JSON file defining the remote model filter."
     )
 
