@@ -5,3 +5,7 @@
 port=$(find_port)
 echo "Port: ${port}"
 echo "Secret: ${secret}"
+
+# Find available port to run Ollama server on
+export port_ollama=$(find_port)
+echo "Ollama Server Port: ${port_ollama}"

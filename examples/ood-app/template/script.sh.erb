@@ -7,37 +7,12 @@ module purge
 # You may or may not need this depending on your system setting, or if you use AMD GPU
 unset ROCR_VISIBLE_DEVICES
 
-# -------------------------------------------
-# Generate a random port for Ollama to use
-# -------------------------------------------
-
-# Function to check if a port is in use
-is_port_in_use() {
-  local port=$1
-  ss -tuln | grep -q ":$port\b"
-}
-
-# Generate a random port number between 1 and 99999 until an available one is found
-find_free_port() {
-  local port
-  while true; do
-    port=$(( (RANDOM % 90000) + 10000 ))  # Generate random number between 10000 and 90000
-    if ! is_port_in_use "$port"; then
-      echo $port
-      return
-    fi
-  done
-}
-
-# Find an available port and run Ollama
-export OLLAMA_PORT=$(find_free_port)
-
 # Start Ollama OnDemand service
 singularity run --nv /path/to/ollamaondemand.sif \
     --debug \
     -w <%=context.work_dir%> \
     --port $port \
     --root-path /rnode/$host/$port \
-    --ollama-host 127.0.0.1:$OLLAMA_PORT \
+    --ollama-host 127.0.0.1:$port_ollama \
     --ollama-models /path/to/admin/maintained/model/location
 
